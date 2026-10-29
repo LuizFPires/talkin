@@ -49,3 +49,6 @@ coverage/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Roteiro (estado local do fluxo de milestones)
+.claude/
