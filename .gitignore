@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+recovery-codes*.txt
+*api*key*
+sk_*
+
+# Supabase
+supabase/.temp/
+supabase/.branches/
+
+# Mobile (Expo)
+.expo/
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+*.orig.*
+
+# Desktop (Tauri)
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
+
+# Logs / OS
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Test / coverage
+coverage/
+.vitest/
+
+# Editors
+.idea/
+.vscode/*
+!.vscode/extensions.json
