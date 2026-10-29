@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { buildAtaHtml } from '@talkin/pdf/html';
 import type { PdfTemplate } from '@talkin/core';
 import { Card, Rotulo } from '@talkin/ui';
@@ -183,9 +184,21 @@ export default function ConfiguracoesPage() {
 
   return (
     <div style={{ maxWidth: 980, margin: '0 auto', padding: '8px 4px 40px' }}>
-      <header style={{ marginBottom: 20 }}>
-        <Rotulo>Configurações</Rotulo>
-        <h1 style={{ fontSize: 24, margin: '4px 0 0', fontWeight: 600 }}>Perfil e empresa</h1>
+      <header
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-end',
+          marginBottom: 20,
+        }}
+      >
+        <div>
+          <Rotulo>Configurações</Rotulo>
+          <h1 style={{ fontSize: 24, margin: '4px 0 0', fontWeight: 600 }}>Perfil e empresa</h1>
+        </div>
+        <Link href="/configuracoes/modelos" style={{ ...botao, textDecoration: 'none' }}>
+          Modelos de ata
+        </Link>
       </header>
       {msg && <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{msg}</p>}
 

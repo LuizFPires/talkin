@@ -11,6 +11,7 @@ import {
 } from '@talkin/core';
 import { Card, Pilula, Rotulo, ToggleSegmentado } from '@talkin/ui';
 import { StatusBadge } from './status-badge';
+import { createClient } from '@/lib/supabase/client';
 
 type Seg = { startMs: number; endMs: number; text: string; falante: string };
 type Template = { id: string; key: string; name: string };
@@ -82,6 +83,36 @@ export function GravacaoView({
     if (!ata) return;
     await navigator.clipboard.writeText(textoWhatsapp(titulo, ata));
     setAviso('Texto copiado para o WhatsApp.');
+  }
+
+  function enviarEmail() {
+    if (!ata) return;
+    const corpo = encodeURIComponent(textoWhatsapp(titulo, ata).replace(/\*/g, ''));
+    // Abre o cliente de e-mail para o usuário revisar destinatários e texto (SPEC 18).
+    window.location.href = `mailto:?subject=${encodeURIComponent(`Ata — ${titulo}`)}&body=${corpo}`;
+  }
+
+  async function criarLink(dias: number | null) {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+    const token = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}${Math.random()}`).replace(
+      /-/g,
+      '',
+    );
+    const expires_at = dias ? new Date(Date.now() + dias * 86400000).toISOString() : null;
+    const { error } = await supabase
+      .from('shares')
+      .insert({ recording_id: recordingId, token, expires_at, created_by: user.id });
+    if (error) {
+      setAviso(error.message);
+      return;
+    }
+    const url = `${window.location.origin}/compartilhar/${token}`;
+    await navigator.clipboard.writeText(url).catch(() => {});
+    setAviso(`Link copiado (${dias ? `${dias} dias` : 'sem expiração'}): ${url}`);
   }
 
   function tocarEm(ms: number) {
@@ -171,7 +202,23 @@ export function GravacaoView({
         >
           Baixar PDF
         </a>
-        {aviso && <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{aviso}</span>}
+        <a
+          href={`/api/docx?recordingId=${recordingId}`}
+          style={{ ...acaoBtn, textDecoration: 'none' }}
+        >
+          Baixar DOCX
+        </a>
+        <button type="button" onClick={enviarEmail} disabled={!ata} style={acaoBtn}>
+          E-mail
+        </button>
+        <button type="button" onClick={() => void criarLink(30)} style={acaoBtn}>
+          Link privado
+        </button>
+        {aviso && (
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
+            {aviso}
+          </span>
+        )}
       </div>
 
       <div style={{ marginBottom: 16 }}>
