@@ -87,3 +87,14 @@ Cada etapa atualiza o status em `recordings` e pode ser reprocessada isoladament
 - **Buckets de áudio:** privados, uma pasta por organização, RLS por membership; links de compartilhamento sempre com expiração.
 - **Qualidade:** ESLint + Prettier, Vitest para testes, `tsc --noEmit` para tipos. CI no GitHub Actions (lint + types + build + test).
 - **Mobile/Desktop no M0:** apenas esqueleto do monorepo (Expo e Tauri). A captura real é M2/M3.
+
+### M1 — Pipeline com importação *(auto — recomendado)*
+- **Pipeline isolado em `packages/pipeline`** (Node/TS), orquestrando as etapas e atualizando `recordings.status` + `processing_jobs`. Em produção roda como worker de fila; no scaffolding é a função `processRecording(id)`.
+- **Provedores com abstração + stub:** interfaces `TranscriptionProvider` e `AtaProvider`. Adapters reais (Deepgram para transcrição com diarização pt-BR; Anthropic Claude para ata/extração) são selecionados por env; sem chave, usa `MockProvider` determinístico — assim o pipeline roda fim a fim no modo só-código.
+- **Transcrição:** Deepgram (nova-2, `language=pt-BR`, `diarize`) como primário; AssemblyAI como alternativa.
+- **Extração de áudio/concatenação:** ffmpeg via processo (`spawn`) no worker; normalização de volume.
+- **IA (ata + extração estruturada):** Claude via `@anthropic-ai/sdk`; a extração (decisões, pendências, valores, prazos, riscos) volta como JSON **validado por schema zod** antes de salvar; cada frase guarda os trechos de origem (minutos).
+- **Upload (importação, SPEC 4):** upload direto do navegador para o Storage (bucket `audio`) + cria `recording` + enfileira job. Blocos/retomada da gravação ao vivo é M2.
+- **Custos (SPEC 25):** cada etapa registra custo de transcrição e de IA em `recordings.cost_*` (gravadas pelo worker via service_role).
+- **Embeddings:** etapa `embed` existe no pipeline mas é no-op no M1; a busca semântica entra no M5.
+- **Tela da gravação (SPEC 12/13):** abas Ata · Transcrição · Pergunte (Pergunte só no M5); player com botões de minuto e transcrição sincronizada.
