@@ -1,0 +1,15 @@
+node_modules
+dist
+.next
+out
+coverage
+.turbo
+pnpm-lock.yaml
+apps/desktop/src-tauri/target
+
+# Conteúdo e assets (não reformatar)
+logo
+CLAUDE.md
+PRD.md
+PLAN.md
+SPEC.md
