@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/env';
 import { AtaContent, type RecordingStatus } from '@talkin/core';
 import { GravacaoView } from '@/components/gravacao-view';
+import { GestaoGravacao } from '@/components/gestao-gravacao';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,21 +83,26 @@ export default async function GravacaoPage({ params }: { params: Promise<{ id: s
   const ata = summary?.content ? AtaContent.safeParse(summary.content) : null;
 
   return (
-    <GravacaoView
-      recordingId={rec.id}
-      titulo={rec.title?.trim() || 'Sem título'}
-      status={rec.status as RecordingStatus}
-      criadoEm={rec.created_at}
-      ata={ata?.success ? ata.data : null}
-      segments={segments.map((s) => ({
-        startMs: s.start_ms,
-        endMs: s.end_ms,
-        text: s.text,
-        falante: s.speaker?.display_name || s.speaker?.label || 'Falante',
-      }))}
-      audioUrl={audioUrl}
-      templates={templates}
-      templateId={rec.template_id as string | null}
-    />
+    <>
+      <GravacaoView
+        recordingId={rec.id}
+        titulo={rec.title?.trim() || 'Sem título'}
+        status={rec.status as RecordingStatus}
+        criadoEm={rec.created_at}
+        ata={ata?.success ? ata.data : null}
+        segments={segments.map((s) => ({
+          startMs: s.start_ms,
+          endMs: s.end_ms,
+          text: s.text,
+          falante: s.speaker?.display_name || s.speaker?.label || 'Falante',
+        }))}
+        audioUrl={audioUrl}
+        templates={templates}
+        templateId={rec.template_id as string | null}
+      />
+      <div style={{ maxWidth: 820, margin: '0 auto', padding: '0 4px' }}>
+        <GestaoGravacao recordingId={rec.id} />
+      </div>
+    </>
   );
 }
