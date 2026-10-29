@@ -26,6 +26,16 @@ export function createSupabasePorts(): PipelinePorts {
     },
 
     async prepareAudio(recordingId) {
+      // Prefixo exigido do caminho (defesa em profundidade contra path traversal):
+      // o worker usa service role, então não confia no storage_path armazenado.
+      const { data: rec } = await db
+        .from('recordings')
+        .select('organization_id')
+        .eq('id', recordingId)
+        .single();
+      if (!rec) throw new Error('gravação não encontrada');
+      const prefix = `${rec.organization_id}/${recordingId}/`;
+
       const { data: chunks } = await db
         .from('recording_chunks')
         .select('index, storage_path')
@@ -36,7 +46,11 @@ export function createSupabasePorts(): PipelinePorts {
       const dir = await mkdtemp(join(tmpdir(), 'talkin-dl-'));
       const localPaths: string[] = [];
       for (const chunk of chunks) {
-        const { data, error } = await db.storage.from('audio').download(chunk.storage_path);
+        const p = chunk.storage_path;
+        if (!p.startsWith(prefix) || p.includes('..') || /[\\%]/.test(p)) {
+          throw new Error('caminho de bloco inválido');
+        }
+        const { data, error } = await db.storage.from('audio').download(p);
         if (error || !data) throw new Error(`falha ao baixar bloco ${chunk.index}`);
         // Nome gerado pelo worker (não confia no storage_path).
         const local = join(
