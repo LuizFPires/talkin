@@ -9,7 +9,8 @@ create index if not exists segments_embedding_idx
 create or replace function public.match_segments(
   query_embedding vector(1536),
   match_count int default 20,
-  p_recording uuid default null
+  p_recording uuid default null,
+  p_recordings uuid[] default null
 )
 returns table (
   recording_id uuid,
@@ -29,6 +30,7 @@ as $$
     and r.deleted_at is null
     and public.can_access_recording(r.id)
     and (p_recording is null or r.id = p_recording)
+    and (p_recordings is null or r.id = any(p_recordings))
   order by s.embedding <=> query_embedding
   limit match_count;
 $$;

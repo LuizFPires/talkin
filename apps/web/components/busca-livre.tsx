@@ -60,6 +60,7 @@ export function BuscaLivre() {
     setBuscando(true);
     const filtros = {
       obraId: rem.has('obra') ? null : (r.filtros.obra?.id ?? null),
+      participante: rem.has('participante') ? null : (r.filtros.participante?.name ?? null),
       plataforma: rem.has('plataforma') ? null : (r.filtros.plataforma ?? null),
       tipoKey: rem.has('tipo') ? null : (r.filtros.tipo?.key ?? null),
       periodo: rem.has('periodo') ? null : (r.filtros.periodo ?? null),

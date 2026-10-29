@@ -5,6 +5,7 @@ import type { PipelinePorts } from '@talkin/pipeline';
 import { concatAndNormalize } from '@talkin/pipeline';
 import type { AtaContent, TranscriptionResult } from '@talkin/core';
 import { createAdminClient } from './supabase/admin';
+import { toVectorLiteral } from './pergunte';
 
 /** Portas do pipeline ligadas ao Supabase (service role, ignora RLS). */
 export function createSupabasePorts(): PipelinePorts {
@@ -226,10 +227,12 @@ export function createSupabasePorts(): PipelinePorts {
 
     async saveEmbeddings(items) {
       for (const it of items) {
-        await db
+        // pgvector espera o literal '[...]', igual ao caminho de leitura.
+        const { error } = await db
           .from('segments')
-          .update({ embedding: it.embedding as unknown as string })
+          .update({ embedding: toVectorLiteral(it.embedding) })
           .eq('id', it.segmentId);
+        if (error) throw new Error(`falha ao salvar embedding: ${error.message}`);
       }
     },
 

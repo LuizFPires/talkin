@@ -7,6 +7,7 @@ export const maxDuration = 60;
 
 type Filtros = {
   obraId?: string | null;
+  participante?: string | null;
   plataforma?: string | null;
   tipoKey?: string | null;
   periodo?: { from?: string; to?: string } | null;
@@ -57,6 +58,18 @@ export async function POST(request: Request) {
       | null) ?? [];
   if (filtros?.tipoKey) candidatos = candidatos.filter((r) => r.templates?.key === filtros.tipoKey);
 
+  // Filtro por participante: restringe às gravações com um falante daquele nome.
+  if (filtros?.participante) {
+    const { data: sp } = await supabase
+      .from('speakers')
+      .select('recording_id')
+      .eq('display_name', filtros.participante);
+    const comParticipante = new Set(
+      ((sp as { recording_id: string }[] | null) ?? []).map((s) => s.recording_id),
+    );
+    candidatos = candidatos.filter((r) => comParticipante.has(r.id));
+  }
+
   const byId = new Map(candidatos.map((r) => [r.id, r]));
   const grupos = new Map<string, Grupo>();
   const add = (rid: string) => {
@@ -98,7 +111,7 @@ export async function POST(request: Request) {
           'transcript_id',
           transcripts.map((t) => t.id),
         )
-        .ilike('text', `%${temaLimpo}%`)
+        .ilike('text', `%${temaLimpo.replace(/[\\%_]/g, '\\$&')}%`)
         .limit(200);
       for (const s of (segs as
         | { transcript_id: string; start_ms: number; text: string }[]
@@ -115,6 +128,8 @@ export async function POST(request: Request) {
       query_embedding: toVectorLiteral(vec!),
       match_count: 60,
       p_recording: null,
+      // Restringe aos candidatos no SQL (recall não é limitado pelo top-N global).
+      p_recordings: candidatos.map((r) => r.id),
     });
     for (const t of (data as { recording_id: string; start_ms: number; text: string }[] | null) ??
       []) {

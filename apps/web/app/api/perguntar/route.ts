@@ -47,13 +47,16 @@ export async function POST(request: Request) {
   if (resposta === null)
     return NextResponse.json({ error: 'Falha ao responder.' }, { status: 500 });
 
+  // Não mostra "Fontes" quando a resposta é a recusa (sem fonte efetiva).
+  const recusou = resposta.startsWith('Não encontrei isso nas gravações');
   return NextResponse.json({
     resposta,
-    // Sem fonte, não responde: citações só quando há trechos.
-    citacoes: trechos.map((t) => ({
-      recordingId: t.recordingId,
-      title: t.recordingTitle,
-      startMs: t.startMs,
-    })),
+    citacoes: recusou
+      ? []
+      : trechos.map((t) => ({
+          recordingId: t.recordingId,
+          title: t.recordingTitle,
+          startMs: t.startMs,
+        })),
   });
 }
