@@ -1,0 +1,35 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Talkin",
+  "version": "0.1.0",
+  "identifier": "ai.humanacademy.talkin",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Talkin",
+        "width": 360,
+        "height": 480,
+        "resizable": false,
+        "transparent": false
+      }
+    ],
+    "trayIcon": {
+      "id": "main",
+      "tooltip": "Talkin — gravador de reuniões"
+    },
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "macOS": {
+      "entitlements": "entitlements.plist"
+    }
+  }
+}

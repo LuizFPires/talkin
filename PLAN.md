@@ -72,13 +72,14 @@ Plano de implementação por milestones. Cada milestone entrega algo usável e t
 > App Expo em código (núcleo `@talkin/capture` testado: fila nunca perde bloco). Aceite em device real roda com o build Expo + Supabase conectado. O app Expo não entra no CI (toolchain nativo); `packages/capture` sim.
 
 ## M3 — Gravador desktop (reuniões online)
-- [ ] App Tauri na barra de menu (macOS) / bandeja (Windows)
-- [ ] Captura do áudio do sistema + microfone em **faixas separadas** ("eu" × "outros")
-- [ ] Detecção de reunião em andamento (Meet, Teams, Zoom, WhatsApp) com sugestão de gravar
-- [ ] Upload incremental igual ao mobile
-- [ ] Fluxo de permissões guiado (macOS: gravação de áudio/tela; Windows: microfone)
+- [x] App Tauri na barra de menu (macOS) / bandeja (Windows) — scaffold com tray
+- [~] Captura do áudio do sistema + microfone em **faixas separadas** ("eu" × "outros") — módulo nativo isolado (`capture/`), stubs por SO documentados (teste manual)
+- [x] Detecção de reunião em andamento (Meet, Teams, Zoom, WhatsApp) com sugestão de gravar — `meeting.rs` + UI (heurística stub)
+- [x] Upload incremental igual ao mobile — reutiliza `@talkin/capture`
+- [x] Fluxo de permissões guiado (macOS: gravação de áudio/tela; Windows: microfone) — entitlements + UI
 
 **Aceite:** gravar uma reunião no Teams desktop e outra no Meet pelo navegador; ambas com "eu" e "outros" separados corretamente.
+> Scaffold Tauri + frontend em código; captura nativa (Rust WASAPI/ScreenCaptureKit) isolada com testes manuais por SO (`CAPTURE-TESTS.md`) — não entra no CI. Aceite roda localmente com Rust + SO alvo + Supabase conectado.
 
 ## M4 — Modelos de ata e saídas
 - [ ] Modelos iniciais:
