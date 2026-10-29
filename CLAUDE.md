@@ -98,3 +98,12 @@ Cada etapa atualiza o status em `recordings` e pode ser reprocessada isoladament
 - **Custos (SPEC 25):** cada etapa registra custo de transcrição e de IA em `recordings.cost_*` (gravadas pelo worker via service_role).
 - **Embeddings:** etapa `embed` existe no pipeline mas é no-op no M1; a busca semântica entra no M5.
 - **Tela da gravação (SPEC 12/13):** abas Ata · Transcrição · Pergunte (Pergunte só no M5); player com botões de minuto e transcrição sincronizada.
+
+### M2 — Gravação presencial (celular) *(auto — recomendado)*
+- **Núcleo de captura em `packages/capture`** (TS puro, sem RN): `ChunkScheduler` (fatia a gravação em blocos de 30–60 s) e `UploadQueue` (upload incremental, retomada, fila offline com persistência por porta). Testado com Vitest e **reutilizado pelo desktop (M3)**. Perder áudio é o pior bug — a fila nunca descarta um bloco sem confirmação do servidor.
+- **App Expo (`apps/mobile`)** com expo-router: telas Biblioteca e Gravando. Gravação com `expo-av`; blocos salvos em `expo-file-system`; `expo-keep-awake` + `expo-task-manager` para seguir com a tela bloqueada; `expo-notifications` para o indicador permanente de gravação.
+- **Indicador sempre visível** (SPEC 6): nunca gravar sem indicador; lembrete "avise os participantes" no início; sem modo oculto.
+- **Marcar momento** (SPEC 5): guarda o instante (ms) e rótulo opcional; vira destaque na ata (passado ao pipeline em `highlights`).
+- **Limites** (SPEC 1): até 4 h (aviso aos 3h45, corta e encadeia nova gravação); AAC/M4A mono; pausa em ligação; aviso de espaço < 500 MB.
+- **Importar do Compartilhar** (iPhone/WhatsApp, SPEC 4): ponto de entrada via share intent; reaproveita o fluxo de upload.
+- **CI:** `packages/capture` entra na verificação (typecheck/test). O app Expo não roda no CI (toolchain nativo pesado); é exercitado localmente via Expo, como os esqueletos nativos.
