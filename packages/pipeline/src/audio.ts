@@ -10,17 +10,34 @@ import { join } from 'node:path';
  */
 export async function concatAndNormalize(chunks: string[]): Promise<string> {
   if (chunks.length === 0) throw new Error('sem blocos de áudio');
+  // Rejeita caminhos capazes de injetar diretivas no arquivo de concat do ffmpeg.
+  for (const c of chunks) {
+    if (/[\n\r\0']/.test(c)) throw new Error('caminho de bloco inválido');
+  }
   const dir = await mkdtemp(join(tmpdir(), 'talkin-'));
   const listPath = join(dir, 'list.txt');
-  await writeFile(listPath, chunks.map((c) => `file '${c.replace(/'/g, "'\\''")}'`).join('\n'));
+  await writeFile(listPath, chunks.map((c) => `file '${c}'`).join('\n'));
   const out = join(dir, 'final.m4a');
 
   await runFfmpeg([
-    '-f', 'concat', '-safe', '0', '-i', listPath,
-    '-ac', '1', // mono (voz)
-    '-af', 'loudnorm', // normalização de volume
-    '-c:a', 'aac', '-b:a', '48k',
-    '-y', out,
+    '-protocol_whitelist',
+    'file,pipe',
+    '-f',
+    'concat',
+    '-safe',
+    '0',
+    '-i',
+    listPath,
+    '-ac',
+    '1', // mono (voz)
+    '-af',
+    'loudnorm', // normalização de volume
+    '-c:a',
+    'aac',
+    '-b:a',
+    '48k',
+    '-y',
+    out,
   ]);
   return out;
 }
