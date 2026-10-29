@@ -40,8 +40,9 @@ as $$
   join recordings r on r.id = sh.recording_id
   join organizations o on o.id = r.organization_id
   join lateral (
+    -- Só compartilha ata REVISADA (não vaza rascunho da IA).
     select content from summaries
-    where recording_id = r.id
+    where recording_id = r.id and status = 'revisada'
     order by created_at desc
     limit 1
   ) s on true
