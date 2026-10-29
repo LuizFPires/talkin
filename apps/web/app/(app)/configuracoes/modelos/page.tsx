@@ -37,6 +37,7 @@ const botao: React.CSSProperties = {
 export default function ModelosPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [orgId, setOrgId] = useState<string | null>(null);
+  const [podeEditar, setPodeEditar] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const configurado = isSupabaseConfigured();
 
@@ -48,12 +49,13 @@ export default function ModelosPage() {
     if (!user) return;
     const { data: m } = await supabase
       .from('memberships')
-      .select('organization_id')
+      .select('organization_id, role')
       .eq('user_id', user.id)
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();
     setOrgId((m?.organization_id as string) ?? null);
+    setPodeEditar(m?.role === 'admin' || m?.role === 'gestor');
     const { data } = await supabase
       .from('templates')
       .select('id, organization_id, key, name, sections')
@@ -74,7 +76,7 @@ export default function ModelosPage() {
       name: 'Novo modelo',
       sections: [{ key: 'resumo', title: 'Resumo' }],
     });
-    setMsg(error ? error.message : 'Modelo criado.');
+    setMsg(error ? 'Não foi possível criar o modelo.' : 'Modelo criado.');
     await carregar();
   }
 
@@ -84,13 +86,13 @@ export default function ModelosPage() {
       .from('templates')
       .update({ name: t.name, sections: t.sections })
       .eq('id', t.id);
-    setMsg(error ? error.message : 'Modelo salvo.');
+    setMsg(error ? 'Não foi possível salvar o modelo.' : 'Modelo salvo.');
   }
 
   async function excluir(id: string) {
     const supabase = createClient();
     const { error } = await supabase.from('templates').delete().eq('id', id);
-    setMsg(error ? error.message : 'Modelo excluído.');
+    setMsg(error ? 'Não foi possível excluir o modelo.' : 'Modelo excluído.');
     await carregar();
   }
 
@@ -121,15 +123,17 @@ export default function ModelosPage() {
           <Rotulo>Modelos de ata</Rotulo>
           <h1 style={{ fontSize: 24, margin: '4px 0 0', fontWeight: 600 }}>Modelos</h1>
         </div>
-        <button style={botao} onClick={() => void novo()}>
-          Novo modelo
-        </button>
+        {podeEditar && (
+          <button style={botao} onClick={() => void novo()}>
+            Novo modelo
+          </button>
+        )}
       </header>
       {msg && <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{msg}</p>}
 
       <div style={{ display: 'grid', gap: 12 }}>
         {templates.map((t) => {
-          const editavel = t.organization_id !== null;
+          const editavel = t.organization_id !== null && podeEditar;
           return (
             <Card key={t.id}>
               <div

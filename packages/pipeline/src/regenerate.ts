@@ -39,7 +39,8 @@ export async function regenerateSummary(
     await ports.setStatus(recordingId, 'pronto');
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await ports.upsertJob(recordingId, 'summarize', 'error', message);
+    // Não persistir payload da ata em diagnóstico: mensagem curta e genérica.
+    await ports.upsertJob(recordingId, 'summarize', 'error', message.slice(0, 160));
     await ports.setStatus(recordingId, 'erro');
     throw new PipelineError(message, { cause: err });
   }

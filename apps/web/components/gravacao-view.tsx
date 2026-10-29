@@ -98,10 +98,10 @@ export function GravacaoView({
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return;
-    const token = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}${Math.random()}`).replace(
-      /-/g,
-      '',
-    );
+    // Token imprevisível (sem fallback fraco): 32 bytes aleatórios em hex.
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    const token = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
     const expires_at = dias ? new Date(Date.now() + dias * 86400000).toISOString() : null;
     const { error } = await supabase
       .from('shares')

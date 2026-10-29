@@ -28,17 +28,7 @@ export async function POST(request: Request) {
   const { data: canModify } = await user.rpc('can_modify_recording', { rec: recordingId });
   if (!canModify) return NextResponse.json({ error: 'Não encontrado.' }, { status: 404 });
 
-  // Troca de modelo (se enviado) via RLS do próprio usuário.
-  if (templateId !== undefined) {
-    const { error } = await user
-      .from('recordings')
-      .update({ template_id: templateId })
-      .eq('id', recordingId);
-    if (error)
-      return NextResponse.json({ error: 'Não foi possível trocar o modelo.' }, { status: 400 });
-  }
-
-  // Claim atômico: só regenera a partir de um estado final (pronto/erro).
+  // Claim atômico PRIMEIRO: só regenera a partir de um estado final (pronto/erro).
   const admin = createAdminClient();
   const { data: claimed } = await admin
     .from('recordings')
@@ -49,6 +39,16 @@ export async function POST(request: Request) {
     .maybeSingle();
   if (!claimed) {
     return NextResponse.json({ error: 'A ata ainda está sendo processada.' }, { status: 409 });
+  }
+
+  // Só então troca o modelo (evita modelo novo com ata antiga se o claim falhar).
+  if (templateId !== undefined) {
+    const { error } = await user
+      .from('recordings')
+      .update({ template_id: templateId })
+      .eq('id', recordingId);
+    if (error)
+      return NextResponse.json({ error: 'Não foi possível trocar o modelo.' }, { status: 400 });
   }
 
   try {
