@@ -63,9 +63,7 @@ export async function processRecording(
     const rows = await ports.listSegmentRows(recordingId);
     if (rows.length > 0) {
       const vetores = await providers.embedding.embed(rows.map((r) => r.text));
-      await ports.saveEmbeddings(
-        rows.map((r, i) => ({ segmentId: r.id, embedding: vetores[i]! })),
-      );
+      await ports.saveEmbeddings(rows.map((r, i) => ({ segmentId: r.id, embedding: vetores[i]! })));
     }
     await ports.upsertJob(recordingId, step, 'done');
 

@@ -34,21 +34,53 @@ export type BuscaInterpretada = {
 const PLATAFORMAS = ['presencial', 'meet', 'teams', 'zoom', 'whatsapp'] as const;
 
 const MESES: Record<string, number> = {
-  janeiro: 0, fevereiro: 1, março: 2, marco: 2, abril: 3, maio: 4, junho: 5,
-  julho: 6, agosto: 7, setembro: 8, outubro: 9, novembro: 10, dezembro: 11,
+  janeiro: 0,
+  fevereiro: 1,
+  março: 2,
+  marco: 2,
+  abril: 3,
+  maio: 4,
+  junho: 5,
+  julho: 6,
+  agosto: 7,
+  setembro: 8,
+  outubro: 9,
+  novembro: 10,
+  dezembro: 11,
 };
 
 const STOPWORDS = new Set([
-  'a', 'o', 'as', 'os', 'de', 'do', 'da', 'dos', 'das', 'e', 'em', 'no', 'na',
-  'nos', 'nas', 'com', 'para', 'por', 'que', 'sobre', 'um', 'uma', 'ao',
-  'reunião', 'reuniao', 'reunioes', 'reuniões',
+  'a',
+  'o',
+  'as',
+  'os',
+  'de',
+  'do',
+  'da',
+  'dos',
+  'das',
+  'e',
+  'em',
+  'no',
+  'na',
+  'nos',
+  'nas',
+  'com',
+  'para',
+  'por',
+  'que',
+  'sobre',
+  'um',
+  'uma',
+  'ao',
+  'reunião',
+  'reuniao',
+  'reunioes',
+  'reuniões',
 ]);
 
 function norm(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '');
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
 function iso(d: Date): string {
