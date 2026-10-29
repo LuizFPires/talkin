@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, Rotulo, Pilula } from '@talkin/ui';
 import { createClient } from '@/lib/supabase/client';
 
@@ -23,6 +24,7 @@ export function GestaoGravacao({ recordingId }: { recordingId: string }) {
   const [falantes, setFalantes] = useState<Falante[]>([]);
   const [pendencias, setPendencias] = useState<Pendencia[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
+  const router = useRouter();
 
   async function carregar() {
     const supabase = createClient();
@@ -50,20 +52,32 @@ export function GestaoGravacao({ recordingId }: { recordingId: string }) {
   async function salvarFalante(f: Falante) {
     const supabase = createClient();
     // Renomear propaga para toda a gravação (os trechos referenciam o falante por id).
-    const { error } = await supabase
+    // .select() detecta 0 linhas (RLS bloqueou) → evita falso sucesso.
+    const { data, error } = await supabase
       .from('speakers')
       .update({ display_name: f.display_name, person_id: f.person_id })
-      .eq('id', f.id);
-    setMsg(error ? 'Não foi possível salvar o falante.' : 'Falante salvo.');
+      .eq('id', f.id)
+      .select('id');
+    if (error || !data?.length) {
+      setMsg('Sem permissão para editar este falante.');
+      return;
+    }
+    setMsg('Falante salvo.');
+    router.refresh(); // reflete o novo nome na transcrição
   }
 
   async function atribuir(p: Pendencia, personId: string) {
     const supabase = createClient();
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('action_items')
       .update({ assignee_person_id: personId || null })
-      .eq('id', p.id);
-    setMsg(error ? 'Não foi possível atribuir.' : 'Pendência atribuída.');
+      .eq('id', p.id)
+      .select('id');
+    if (error || !data?.length) {
+      setMsg('Sem permissão para atribuir esta pendência.');
+      return;
+    }
+    setMsg('Pendência atribuída.');
     setPendencias((ps) =>
       ps.map((x) => (x.id === p.id ? { ...x, assignee_person_id: personId || null } : x)),
     );

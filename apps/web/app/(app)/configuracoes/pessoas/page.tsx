@@ -37,6 +37,7 @@ const botao: React.CSSProperties = {
 export default function PessoasPage() {
   const [pessoas, setPessoas] = useState<Pessoa[]>([]);
   const [orgId, setOrgId] = useState<string | null>(null);
+  const [podeEditar, setPodeEditar] = useState(false);
   const [nova, setNova] = useState({ name: '', empresa: '', papel: '', contato: '' });
   const [msg, setMsg] = useState<string | null>(null);
   const configurado = isSupabaseConfigured();
@@ -49,12 +50,13 @@ export default function PessoasPage() {
     if (!user) return;
     const { data: m } = await supabase
       .from('memberships')
-      .select('organization_id')
+      .select('organization_id, role')
       .eq('user_id', user.id)
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();
     setOrgId((m?.organization_id as string) ?? null);
+    setPodeEditar(m?.role === 'admin' || m?.role === 'gestor');
     const { data } = await supabase
       .from('people')
       .select('id, name, empresa, papel, contato')
@@ -84,10 +86,17 @@ export default function PessoasPage() {
   }
 
   async function excluir(id: string) {
-    const { error } = await createClient()
+    const supabase = createClient();
+    const { error } = await supabase
       .from('people')
       .update({ deleted_at: new Date().toISOString() })
       .eq('id', id);
+    // Soft-delete: limpa as referências (o on delete set null só vale em delete físico).
+    await supabase.from('speakers').update({ person_id: null }).eq('person_id', id);
+    await supabase
+      .from('action_items')
+      .update({ assignee_person_id: null })
+      .eq('assignee_person_id', id);
     setMsg(error ? 'Não foi possível remover.' : 'Pessoa removida.');
     await carregar();
   }
@@ -108,38 +117,45 @@ export default function PessoasPage() {
         <h1 style={{ fontSize: 24, margin: '4px 0 0', fontWeight: 600 }}>Cadastro de pessoas</h1>
       </header>
       {msg && <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{msg}</p>}
+      {!podeEditar && (
+        <p style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
+          Só gestor/administrador cadastra pessoas.
+        </p>
+      )}
 
-      <Card style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <input
-            style={campo}
-            placeholder="Nome"
-            value={nova.name}
-            onChange={(e) => setNova({ ...nova, name: e.target.value })}
-          />
-          <input
-            style={campo}
-            placeholder="Empresa"
-            value={nova.empresa}
-            onChange={(e) => setNova({ ...nova, empresa: e.target.value })}
-          />
-          <input
-            style={campo}
-            placeholder="Papel"
-            value={nova.papel}
-            onChange={(e) => setNova({ ...nova, papel: e.target.value })}
-          />
-          <input
-            style={campo}
-            placeholder="Contato"
-            value={nova.contato}
-            onChange={(e) => setNova({ ...nova, contato: e.target.value })}
-          />
-          <button style={botao} onClick={() => void criar()}>
-            Adicionar
-          </button>
-        </div>
-      </Card>
+      {podeEditar && (
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <input
+              style={campo}
+              placeholder="Nome"
+              value={nova.name}
+              onChange={(e) => setNova({ ...nova, name: e.target.value })}
+            />
+            <input
+              style={campo}
+              placeholder="Empresa"
+              value={nova.empresa}
+              onChange={(e) => setNova({ ...nova, empresa: e.target.value })}
+            />
+            <input
+              style={campo}
+              placeholder="Papel"
+              value={nova.papel}
+              onChange={(e) => setNova({ ...nova, papel: e.target.value })}
+            />
+            <input
+              style={campo}
+              placeholder="Contato"
+              value={nova.contato}
+              onChange={(e) => setNova({ ...nova, contato: e.target.value })}
+            />
+            <button style={botao} onClick={() => void criar()}>
+              Adicionar
+            </button>
+          </div>
+        </Card>
+      )}
 
       <div style={{ display: 'grid', gap: 8 }}>
         {pessoas.map((p) => (
@@ -156,21 +172,23 @@ export default function PessoasPage() {
                 </span>
               )}
             </span>
-            <button
-              type="button"
-              onClick={() => void excluir(p.id)}
-              style={{
-                background: 'none',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-pill)',
-                color: 'var(--danger)',
-                fontSize: 12,
-                padding: '4px 10px',
-                cursor: 'pointer',
-              }}
-            >
-              Remover
-            </button>
+            {podeEditar && (
+              <button
+                type="button"
+                onClick={() => void excluir(p.id)}
+                style={{
+                  background: 'none',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-pill)',
+                  color: 'var(--danger)',
+                  fontSize: 12,
+                  padding: '4px 10px',
+                  cursor: 'pointer',
+                }}
+              >
+                Remover
+              </button>
+            )}
           </Card>
         ))}
         {pessoas.length === 0 && (
