@@ -72,3 +72,18 @@ Cada etapa atualiza o status em `recordings` e pode ser reprocessada isoladament
 - Marcar o item no `PLAN.md`.
 - Validar contra o critério de aceite do milestone.
 - Testar com áudio real em pt-BR (há amostras em `fixtures/audio/`).
+
+## Decisões tomadas
+
+### M0 — Fundação *(auto — recomendado)*
+- **Monorepo:** pnpm workspaces + Turborepo (cache de build/lint/test). Node 24, pnpm 11.
+- **Web:** Next.js 15 (App Router) + TypeScript + Tailwind v4; tokens Human como CSS variables.
+- **Backend:** Supabase (Postgres + Auth + Storage + pgvector). Migrations em SQL versionadas em `supabase/migrations`.
+- **Login:** Supabase Auth com e-mail + senha no M0; Google/Microsoft (OAuth) e e-mail+código ficam preparados para milestone posterior (SPEC 23).
+- **Multi-tenancy / RLS:** toda tabela de dados tem `organization_id`; acesso por RLS via `memberships(organization_id, user_id, role)`. Papéis: `admin`, `gestor`, `membro` (SPEC 23).
+- **Visibilidade da gravação:** enum `privada | projeto | empresa`, padrão `privada` (SPEC 23).
+- **Fila de processamento:** status enum em `recordings` (`enviado → transcrevendo → segmentando → resumindo → pronto | erro`) + tabela `processing_jobs` para reprocessar etapas isoladamente (CLAUDE.md Pipeline).
+- **Convenções de dados:** `id uuid` (gen_random_uuid), timestamps `timestamptz`, soft-delete via `deleted_at` (lixeira de 30 dias, SPEC 24).
+- **Buckets de áudio:** privados, uma pasta por organização, RLS por membership; links de compartilhamento sempre com expiração.
+- **Qualidade:** ESLint + Prettier, Vitest para testes, `tsc --noEmit` para tipos. CI no GitHub Actions (lint + types + build + test).
+- **Mobile/Desktop no M0:** apenas esqueleto do monorepo (Expo e Tauri). A captura real é M2/M3.
