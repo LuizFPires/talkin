@@ -67,6 +67,7 @@ as $$
     select 1
     from recordings r
     where r.id = rec
+      and public.is_org_member(r.organization_id)
       and (r.created_by = auth.uid() or public.is_org_admin(r.organization_id))
   );
 $$;
