@@ -135,10 +135,10 @@ Plano de implementação por milestones. Cada milestone entrega algo usável e t
 **Aceite:** o bot entra numa reunião em que o usuário não está no computador e a ata chega normalmente.
 
 ## M9 — PWA (instalável + offline) *(extra, pós-M8)*
-- [ ] Web manifest (`display: standalone`, cores do tema, start_url)
-- [ ] Ícone do app (SVG escalável `any`/`maskable`)
-- [ ] Service worker (cache do app shell + offline da interface)
-- [ ] Metadados (`manifest`, `themeColor`, `appleWebApp`) e registro do SW
+- [x] Web manifest (`display: standalone`, cores do tema, start_url) — `app/manifest.ts`
+- [x] Ícone do app (SVG escalável `any`/`maskable`) — `public/icon.svg`
+- [x] Service worker (cache do app shell + offline da interface) — `public/sw.js` + `SWRegister`
+- [x] Metadados (`manifest`, `themeColor`, `appleWebApp`) e registro do SW — `layout.tsx`
 
 **Aceite:** o app pode ser instalado (Android/desktop) e a interface abre offline; áudio continua subindo pela fila ao voltar a rede.
 > Ícones PNG 192/512/180 (Lighthouse e home-screen do iOS) devem ser gerados a partir de `apps/web/public/icon.svg` com uma ferramenta de imagem — passo manual (sharp indisponível no ambiente só-código).

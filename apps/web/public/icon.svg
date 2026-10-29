@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Talkin">
+  <rect width="512" height="512" rx="112" fill="#0D2020" />
+  <!-- microfone (recorder), acento menta, dentro da área segura do maskable -->
+  <g fill="none" stroke="#98EBD7" stroke-width="22" stroke-linecap="round">
+    <rect x="212" y="150" width="88" height="140" rx="44" fill="#98EBD7" stroke="none" />
+    <path d="M174 258 a82 82 0 0 0 164 0" />
+    <line x1="256" y1="340" x2="256" y2="378" />
+    <line x1="212" y1="378" x2="300" y2="378" />
+  </g>
+</svg>
