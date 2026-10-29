@@ -1,0 +1,6 @@
+{
+  "name": "@talkin/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "description": "App Tauri — gravador de reuniões online com captura nativa (M3). Esqueleto no M0."
+}
