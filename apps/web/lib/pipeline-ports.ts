@@ -204,6 +204,35 @@ export function createSupabasePorts(): PipelinePorts {
         .eq('id', recordingId);
     },
 
+    async listSegmentRows(recordingId) {
+      const { data: transcript } = await db
+        .from('transcripts')
+        .select('id')
+        .eq('recording_id', recordingId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!transcript) return [];
+      const { data } = await db
+        .from('segments')
+        .select('id, text')
+        .eq('transcript_id', transcript.id)
+        .order('start_ms', { ascending: true });
+      return ((data as { id: string; text: string }[] | null) ?? []).map((r) => ({
+        id: r.id,
+        text: r.text,
+      }));
+    },
+
+    async saveEmbeddings(items) {
+      for (const it of items) {
+        await db
+          .from('segments')
+          .update({ embedding: it.embedding as unknown as string })
+          .eq('id', it.segmentId);
+      }
+    },
+
     async addAiCost(recordingId, cents) {
       // service role: o guard permite alterar custo. Incremento (lê e soma).
       const { data } = await db

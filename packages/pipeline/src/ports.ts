@@ -41,9 +41,16 @@ export interface PipelinePorts {
 
   /** Incrementa o custo de IA (ex.: regeneração), sem zerar o de transcrição. */
   addAiCost(recordingId: string, cents: number): Promise<void>;
+
+  /** Trechos com id, para gerar embeddings (busca por significado, M5). */
+  listSegmentRows(recordingId: string): Promise<{ id: string; text: string }[]>;
+
+  /** Salva os embeddings dos trechos. */
+  saveEmbeddings(items: { segmentId: string; embedding: number[] }[]): Promise<void>;
 }
 
 export type Providers = {
   transcription: import('@talkin/core').TranscriptionProvider;
   ata: import('@talkin/core').AtaProvider;
+  embedding: import('@talkin/core').EmbeddingProvider;
 };
