@@ -117,15 +117,12 @@ Plano de implementação por milestones. Cada milestone entrega algo usável e t
 > Código do M6 completo. Renome/ligação de falantes e atribuição de pendências na tela da gravação; sugestão por voz (dado biométrico) fica como refinamento opt-in futuro.
 
 ## M7 — Integrações
-- [ ] Calendário Google / Outlook:
-  - título da reunião
-  - participantes
-  - projeto
-  - lembrete de gravar
-- [ ] Envio de pendências ao ioo / sistemas de obra (webhook/API)
-- [ ] Importação automática das gravações do Meet/Teams quando houver acesso (Drive / OneDrive)
+- [~] Calendário Google / Outlook (título, participantes, projeto, lembrete) — motor de regras (`sugerirPorEvento`) pronto; conexão OAuth é scaffold (exige credenciais)
+- [x] Envio de pendências ao ioo / sistemas de obra (webhook/API) — `/api/integracoes/enviar` (POST assinado HMAC, só ata revisada, anti-SSRF)
+- [~] Importação automática das gravações do Meet/Teams (Drive / OneDrive) — scaffold (OAuth/credenciais)
 
 **Aceite:** uma reunião do calendário gera, ao final, a ata vinculada ao projeto certo e as pendências no ioo.
+> Webhook ioo completo e verificável (motor de regras e payload testados no CI; envio real com a URL do usuário). Calendário/Drive dependem de OAuth (credenciais do usuário) — scaffold com "Conectar", sincronização ao conectar (modo só-código).
 
 ## M8 — Bot de reunião (opcional)
 - [ ] Integração com API de bot de reunião (ex.: Recall.ai) para Meet, Teams e Zoom
