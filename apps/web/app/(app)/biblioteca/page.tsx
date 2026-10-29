@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/env';
 import { formatDateBR, type RecordingSource, type RecordingStatus } from '@talkin/core';
@@ -96,27 +97,29 @@ export default async function BibliotecaPage() {
         <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 10 }}>
           {gravacoes.map((g) => (
             <li key={g.id}>
-              <Card
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 12,
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Pilula>{ORIGEM[g.source]}</Pilula>
-                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                      {formatDateBR(g.created_at)}
-                    </span>
+              <Link href={`/gravacao/${g.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                <Card
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Pilula>{ORIGEM[g.source]}</Pilula>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                        {formatDateBR(g.created_at)}
+                      </span>
+                    </div>
+                    <p style={{ margin: '8px 0 0', fontSize: 15 }}>
+                      {g.title.trim() || 'Sem título'}
+                    </p>
                   </div>
-                  <p style={{ margin: '8px 0 0', fontSize: 15 }}>
-                    {g.title.trim() || 'Sem título'}
-                  </p>
-                </div>
-                <StatusBadge status={g.status} />
-              </Card>
+                  <StatusBadge status={g.status} />
+                </Card>
+              </Link>
             </li>
           ))}
         </ul>
