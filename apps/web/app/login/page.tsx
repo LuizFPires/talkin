@@ -81,7 +81,7 @@ export default function LoginPage() {
             style={campo}
           />
           {erro && (
-            <span style={{ color: '#ff8a8a', fontSize: 13 }} role="alert">
+            <span style={{ color: 'var(--danger)', fontSize: 13 }} role="alert">
               {erro}
             </span>
           )}
@@ -131,7 +131,7 @@ const botao: React.CSSProperties = {
   borderRadius: 'var(--radius-pill)',
   border: '1px solid var(--accent)',
   background: 'var(--accent)',
-  color: '#04221a',
+  color: 'var(--on-accent)',
   fontWeight: 600,
   fontSize: 14,
   cursor: 'pointer',

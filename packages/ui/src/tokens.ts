@@ -10,7 +10,11 @@ export const tokens = {
     text: '#f5f5f7',
     textSecondary: '#98989d',
     accent: '#94efda', // menta — uma ocorrência por região
+    onAccent: '#04221a', // texto sobre o acento menta
     label: '#798e91',
+    danger: '#ff8a8a',
+    warning: '#e9c46a',
+    success: '#94efda',
   },
   gradient: {
     sidebar: 'linear-gradient(to bottom, #0f1c1d, #070f11)',
@@ -49,7 +53,11 @@ export function cssVariables(): string {
     `--text: ${tokens.color.text}`,
     `--text-secondary: ${tokens.color.textSecondary}`,
     `--accent: ${tokens.color.accent}`,
+    `--on-accent: ${tokens.color.onAccent}`,
     `--label: ${tokens.color.label}`,
+    `--danger: ${tokens.color.danger}`,
+    `--warning: ${tokens.color.warning}`,
+    `--success: ${tokens.color.success}`,
     `--gradient-sidebar: ${tokens.gradient.sidebar}`,
     `--gradient-active: ${tokens.gradient.activeItem}`,
     `--radius-panel: ${tokens.radius.panel}`,

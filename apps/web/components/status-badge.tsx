@@ -10,11 +10,11 @@ const LABEL: Record<LibraryStatus, string> = {
 };
 
 const COR: Record<LibraryStatus, string> = {
-  gravando: '#ff7a7a',
+  gravando: 'var(--danger)',
   enviando: 'var(--text-secondary)',
-  processando: '#e9c46a',
-  pronto: 'var(--accent)',
-  erro: '#ff8a8a',
+  processando: 'var(--warning)',
+  pronto: 'var(--success)',
+  erro: 'var(--danger)',
 };
 
 export function StatusBadge({ status }: { status: RecordingStatus }) {

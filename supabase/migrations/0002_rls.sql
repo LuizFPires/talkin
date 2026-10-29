@@ -58,6 +58,19 @@ as $$
   );
 $$;
 
+-- Escrita numa gravação: só o dono ou admin da empresa (o worker usa service_role).
+create or replace function public.can_modify_recording(rec uuid)
+returns boolean
+language sql stable security definer set search_path = public
+as $$
+  select exists (
+    select 1
+    from recordings r
+    where r.id = rec
+      and (r.created_by = auth.uid() or public.is_org_admin(r.organization_id))
+  );
+$$;
+
 -- ─────────────── Bootstrap seguro de empresa (sem self-insert) ────────────────
 -- Cria a empresa, torna o criador admin e preenche o profile numa transação só.
 create or replace function public.create_organization(p_nome_fantasia text)
@@ -71,6 +84,10 @@ declare
 begin
   if v_uid is null then
     raise exception 'não autenticado';
+  end if;
+  -- Um usuário só cria uma empresa (evita reatribuir org e criar empresas em excesso).
+  if exists (select 1 from memberships where user_id = v_uid) then
+    raise exception 'usuário já pertence a uma empresa';
   end if;
   select email into v_email from auth.users where id = v_uid;
 
@@ -186,9 +203,10 @@ create policy projects_all on projects
 
 create policy templates_select on templates
   for select using (organization_id is null or public.is_org_member(organization_id));
+-- Modelos de ata são artefato de negócio: só gestor/admin escreve.
 create policy templates_write on templates
-  for all using (organization_id is not null and public.is_org_member(organization_id))
-  with check (organization_id is not null and public.is_org_member(organization_id));
+  for all using (organization_id is not null and public.is_org_gestor_or_admin(organization_id))
+  with check (organization_id is not null and public.is_org_gestor_or_admin(organization_id));
 
 -- recordings: select respeita visibilidade; insert/update checam dono + FKs da mesma empresa.
 create policy recordings_select on recordings
@@ -239,42 +257,81 @@ create policy recordings_update on recordings
 create policy recordings_delete on recordings
   for delete using (created_by = auth.uid() or public.is_org_admin(organization_id));
 
--- ─────────────── Tabelas-filhas (acesso via gravação) ────────────────
-create policy recording_chunks_all on recording_chunks
-  for all using (public.can_access_recording(recording_id))
-  with check (public.can_access_recording(recording_id));
+-- ─────────────── Tabelas-filhas: leitura por acesso, escrita por dono/admin ───────────────
+-- O worker do pipeline escreve via service_role (ignora RLS). O cliente só escreve
+-- no que é dele (can_modify_recording). Leitura respeita a visibilidade (can_access).
 
-create policy transcripts_all on transcripts
-  for all using (public.can_access_recording(recording_id))
-  with check (public.can_access_recording(recording_id));
+-- recording_chunks: além de dono/admin, o caminho precisa ser {org}/{recording_id}/...
+create policy recording_chunks_select on recording_chunks
+  for select using (public.can_access_recording(recording_id));
+create policy recording_chunks_insert on recording_chunks
+  for insert with check (
+    public.can_modify_recording(recording_id)
+    and exists (
+      select 1 from recordings r
+      where r.id = recording_id
+        and storage_path like r.organization_id::text || '/' || recording_id::text || '/%'
+    )
+  );
+create policy recording_chunks_update on recording_chunks
+  for update using (public.can_modify_recording(recording_id))
+  with check (
+    public.can_modify_recording(recording_id)
+    and exists (
+      select 1 from recordings r
+      where r.id = recording_id
+        and storage_path like r.organization_id::text || '/' || recording_id::text || '/%'
+    )
+  );
+create policy recording_chunks_delete on recording_chunks
+  for delete using (public.can_modify_recording(recording_id));
 
-create policy speakers_all on speakers
-  for all using (public.can_access_recording(recording_id))
-  with check (public.can_access_recording(recording_id));
+create policy transcripts_select on transcripts
+  for select using (public.can_access_recording(recording_id));
+create policy transcripts_write on transcripts
+  for all using (public.can_modify_recording(recording_id))
+  with check (public.can_modify_recording(recording_id));
 
-create policy summaries_all on summaries
-  for all using (public.can_access_recording(recording_id))
-  with check (public.can_access_recording(recording_id));
+create policy speakers_select on speakers
+  for select using (public.can_access_recording(recording_id));
+create policy speakers_write on speakers
+  for all using (public.can_modify_recording(recording_id))
+  with check (public.can_modify_recording(recording_id));
 
-create policy action_items_all on action_items
-  for all using (public.can_access_recording(recording_id))
-  with check (public.can_access_recording(recording_id));
+create policy summaries_select on summaries
+  for select using (public.can_access_recording(recording_id));
+create policy summaries_write on summaries
+  for all using (public.can_modify_recording(recording_id))
+  with check (public.can_modify_recording(recording_id));
+
+create policy action_items_select on action_items
+  for select using (public.can_access_recording(recording_id));
+create policy action_items_write on action_items
+  for all using (public.can_modify_recording(recording_id))
+  with check (public.can_modify_recording(recording_id));
 
 -- processing_jobs: cliente só lê; escrita é do worker (service_role, que ignora RLS).
 create policy processing_jobs_select on processing_jobs
   for select using (public.can_access_recording(recording_id));
 
--- segments: acesso via transcript → recording
-create policy segments_all on segments
-  for all using (
+-- segments: leitura via transcript → recording (acesso); escrita por dono/admin.
+create policy segments_select on segments
+  for select using (
     exists (
       select 1 from transcripts t
       where t.id = segments.transcript_id and public.can_access_recording(t.recording_id)
+    )
+  );
+create policy segments_write on segments
+  for all using (
+    exists (
+      select 1 from transcripts t
+      where t.id = segments.transcript_id and public.can_modify_recording(t.recording_id)
     )
   )
   with check (
     exists (
       select 1 from transcripts t
-      where t.id = segments.transcript_id and public.can_access_recording(t.recording_id)
+      where t.id = segments.transcript_id and public.can_modify_recording(t.recording_id)
     )
   );

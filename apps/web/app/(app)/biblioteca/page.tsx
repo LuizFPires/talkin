@@ -65,7 +65,7 @@ export default async function BibliotecaPage() {
               borderRadius: 'var(--radius-pill)',
               border: '1px solid var(--accent)',
               background: 'var(--accent)',
-              color: '#04221a',
+              color: 'var(--on-accent)',
               fontWeight: 600,
               fontSize: 13,
               cursor: configurado ? 'pointer' : 'not-allowed',

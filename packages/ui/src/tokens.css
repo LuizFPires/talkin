@@ -6,7 +6,11 @@
   --text: #f5f5f7;
   --text-secondary: #98989d;
   --accent: #94efda;
+  --on-accent: #04221a;
   --label: #798e91;
+  --danger: #ff8a8a;
+  --warning: #e9c46a;
+  --success: #94efda;
 
   --gradient-sidebar: linear-gradient(to bottom, #0f1c1d, #070f11);
   --gradient-active: linear-gradient(to bottom, #283334, #1b2728);
