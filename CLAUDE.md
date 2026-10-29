@@ -144,3 +144,9 @@ Cada etapa atualiza o status em `recordings` e pode ser reprocessada isoladament
 - **Motor de regras (SPEC 20, `packages/core`):** `sugerirPorEvento(titulo, participantes, regras, ...)` → modelo/projeto sugeridos (ex.: título com "obra" → Reunião de obra; fornecedor X → projeto Y). Puro e testado; reutilizável pela detecção do desktop.
 - **Calendário Google/Outlook e import Meet/Teams (Drive/OneDrive):** dependem de OAuth (credenciais do usuário). Ficam como **scaffold** com "Conectar" que exige credenciais; a sincronização real roda ao conectar (modo só-código).
 - **CI:** motor de regras e payload do webhook testados; o envio real sai com a URL configurada pelo usuário.
+
+### M8 — Bot de reunião (opcional) *(auto — recomendado)*
+- **`BotProvider` em `packages/core`:** interface `scheduleBot`/`stopBot`; adapter **Recall.ai** (por env) + mock determinístico (modo só-código). `estimarCustoBotCents(minutos, centsPorHora)` puro e testado (controle de custo, SPEC 22).
+- **Tabela `meeting_bots`** (por empresa): plataforma, `meeting_url`, `provider_bot_id`, status (`agendado|entrando|gravando|saiu|erro`), `scheduled_at`, `cost_cents`, criado_por. RLS por empresa.
+- **Agendar/parar por reunião (SPEC 22):** colar a URL da reunião (Meet/Teams/Zoom) → **mostra o custo por hora antes de ativar** → agenda (bot entra nomeado "Talkin — gravador") → liga/desliga por reunião. O bot avisa no chat da reunião (nunca gravação oculta). A gravação retorna via webhook do Recall (scaffold) e entra no mesmo pipeline.
+- **CI:** cálculo de custo e provider testados; chamadas reais rodam com a chave do Recall.
