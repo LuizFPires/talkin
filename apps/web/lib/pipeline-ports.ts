@@ -5,6 +5,7 @@ import type { PipelinePorts } from '@talkin/pipeline';
 import { concatAndNormalize } from '@talkin/pipeline';
 import type { AtaContent, TranscriptionResult } from '@talkin/core';
 import { createAdminClient } from './supabase/admin';
+import { toVectorLiteral } from './pergunte';
 
 /** Portas do pipeline ligadas ao Supabase (service role, ignora RLS). */
 export function createSupabasePorts(): PipelinePorts {
@@ -202,6 +203,37 @@ export function createSupabasePorts(): PipelinePorts {
           cost_ai_cents: cost.aiCents,
         })
         .eq('id', recordingId);
+    },
+
+    async listSegmentRows(recordingId) {
+      const { data: transcript } = await db
+        .from('transcripts')
+        .select('id')
+        .eq('recording_id', recordingId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!transcript) return [];
+      const { data } = await db
+        .from('segments')
+        .select('id, text')
+        .eq('transcript_id', transcript.id)
+        .order('start_ms', { ascending: true });
+      return ((data as { id: string; text: string }[] | null) ?? []).map((r) => ({
+        id: r.id,
+        text: r.text,
+      }));
+    },
+
+    async saveEmbeddings(items) {
+      for (const it of items) {
+        // pgvector espera o literal '[...]', igual ao caminho de leitura.
+        const { error } = await db
+          .from('segments')
+          .update({ embedding: toVectorLiteral(it.embedding) })
+          .eq('id', it.segmentId);
+        if (error) throw new Error(`falha ao salvar embedding: ${error.message}`);
+      }
     },
 
     async addAiCost(recordingId, cents) {

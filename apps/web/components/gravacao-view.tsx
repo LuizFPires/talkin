@@ -235,14 +235,82 @@ export function GravacaoView({
 
       {aba === 'ata' && <AbaAta ata={ata} MinutoPill={MinutoPill} />}
       {aba === 'transcricao' && <AbaTranscricao segments={segments} MinutoPill={MinutoPill} />}
-      {aba === 'pergunte' && (
-        <Card>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: 0 }}>
-            Perguntar com citação (gravação + minuto) entra no M5.
-          </p>
-        </Card>
-      )}
+      {aba === 'pergunte' && <AbaPergunte recordingId={recordingId} MinutoPill={MinutoPill} />}
     </div>
+  );
+}
+
+function AbaPergunte({
+  recordingId,
+  MinutoPill,
+}: {
+  recordingId: string;
+  MinutoPill: (p: { ms: number }) => React.ReactNode;
+}) {
+  const [pergunta, setPergunta] = useState('');
+  const [resposta, setResposta] = useState<string | null>(null);
+  const [citacoes, setCitacoes] = useState<{ startMs: number }[]>([]);
+  const [carregando, setCarregando] = useState(false);
+
+  async function perguntar() {
+    if (pergunta.trim().length < 3) return;
+    setCarregando(true);
+    setResposta(null);
+    const res = await fetch('/api/perguntar', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ pergunta, recordingId }),
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      resposta?: string;
+      citacoes?: { startMs: number }[];
+    };
+    setResposta(body.resposta ?? 'Não foi possível responder.');
+    setCitacoes(body.citacoes ?? []);
+    setCarregando(false);
+  }
+
+  return (
+    <Card>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          value={pergunta}
+          onChange={(e) => setPergunta(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && void perguntar()}
+          placeholder="O que foi combinado sobre o prazo da estrutura?"
+          style={{
+            flex: 1,
+            padding: '10px 12px',
+            borderRadius: 'var(--radius-menu)',
+            border: '1px solid var(--border)',
+            background: 'var(--bg)',
+            color: 'var(--text)',
+            fontSize: 14,
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => void perguntar()}
+          disabled={carregando}
+          style={acaoBtn}
+        >
+          {carregando ? '…' : 'Perguntar'}
+        </button>
+      </div>
+      {resposta && (
+        <div style={{ marginTop: 12 }}>
+          <p style={{ fontSize: 15, lineHeight: 1.55, margin: 0 }}>{resposta}</p>
+          {citacoes.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+              <Rotulo>Fontes</Rotulo>
+              {citacoes.map((c, i) => (
+                <MinutoPill key={i} ms={c.startMs} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }
 

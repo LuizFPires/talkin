@@ -3,6 +3,7 @@ import type { AtaContent, TranscriptionResult } from '@talkin/core';
 import { processRecording, PipelineError } from './pipeline';
 import type { PipelinePorts, Providers } from './ports';
 import { MockAtaProvider, MockTranscriptionProvider } from './providers/mock';
+import { MockEmbeddingProvider } from './providers/embedding';
 
 function makePorts() {
   const state = {
@@ -64,6 +65,10 @@ function makePorts() {
     async addAiCost(_id, cents) {
       state.cost = { ...state.cost, aiCents: state.cost.aiCents + cents };
     },
+    async listSegmentRows() {
+      return [{ id: 'seg1', text: 'oi' }];
+    },
+    async saveEmbeddings() {},
   };
   return { ports, state };
 }
@@ -71,6 +76,7 @@ function makePorts() {
 const providers: Providers = {
   transcription: new MockTranscriptionProvider(),
   ata: new MockAtaProvider(),
+  embedding: new MockEmbeddingProvider(),
 };
 
 describe('processRecording', () => {
@@ -103,6 +109,7 @@ describe('processRecording', () => {
         },
       },
       ata: new MockAtaProvider(),
+      embedding: new MockEmbeddingProvider(),
     };
     await expect(processRecording('rec1', ports, boom)).rejects.toBeInstanceOf(PipelineError);
     expect(state.status.at(-1)).toBe('erro');

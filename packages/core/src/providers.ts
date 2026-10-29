@@ -53,3 +53,10 @@ export interface AtaProvider {
   readonly name: string;
   generate(input: AtaInput): Promise<AtaResult>;
 }
+
+/** Gera embeddings de texto (busca por significado, M5). Dimensão 1536. */
+export interface EmbeddingProvider {
+  readonly name: string;
+  readonly dimensions: number;
+  embed(texts: string[]): Promise<number[][]>;
+}

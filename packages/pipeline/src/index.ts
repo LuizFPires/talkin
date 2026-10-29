@@ -6,3 +6,4 @@ export { concatAndNormalize } from './audio';
 export { DeepgramProvider } from './providers/deepgram';
 export { AnthropicAtaProvider } from './providers/anthropic';
 export { MockTranscriptionProvider, MockAtaProvider } from './providers/mock';
+export { OpenAIEmbeddingProvider, MockEmbeddingProvider } from './providers/embedding';

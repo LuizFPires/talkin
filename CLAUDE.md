@@ -123,3 +123,11 @@ Cada etapa atualiza o status em `recordings` e pode ser reprocessada isoladament
 - **Modelos (SPEC 9):** sugestão automática por título/participantes (padrão `generico`); troca manual **regenera** a ata (re-roda a etapa `summarize` com o novo `template_id`, preservando edições do usuário por seção). Editor de modelos (seções, instruções) em `/configuracoes/modelos` — escrita restrita a gestor/admin.
 - **Saídas (SPEC 18):** PDF (Executiva), DOCX (lib `docx`), texto para WhatsApp (formatado), e-mail (confirma destinatários/texto antes) e **link privado com expiração** (7/30 dias ou sem expiração; áudio e transcrição completa não vão por padrão). Toda saída respeita RLS.
 - **Edição da ata:** rascunho → Revisada; edições do usuário preservadas ao regenerar (só seções não editadas mudam).
+
+### M5 — Biblioteca, busca e "Pergunte" *(auto — recomendado)*
+- **Interpretador de busca livre em `packages/core`** (`interpretarBusca(texto, cadastro)`, TS puro, testado): separa o texto em **tema** + filtros (obra, participante, plataforma, período, tipo) usando o cadastro real da empresa (projetos, participantes, plataformas, modelos) e devolve **chips "Entendi assim"** removíveis. Nome ambíguo prioriza a entidade cadastrada e mostra o chip para corrigir.
+- **Embeddings (pgvector):** etapa `embed` do pipeline deixa de ser no-op — gera embedding por trecho via `EmbeddingProvider` (OpenAI `text-embedding-3-small`, 1536; sem chave usa mock determinístico). Índice ivfflat em `segments.embedding`. Busca por significado via RPC `match_segments` (SECURITY DEFINER, respeita acesso à gravação).
+- **Busca livre (SPEC 16):** um campo só; modos **por significado** (embeddings) e **palavra exata** (ilike); resultados **agrupados por reunião**, ordenados por menções, com até 3 trechos e o minuto; sem tema, lista as reuniões que batem com os filtros. Respeita RLS/visibilidade.
+- **Projetos/obras e filtros:** CRUD de projetos; filtros por projeto, pessoa, tipo e período na biblioteca.
+- **"Pergunte" (SPEC 17):** chat sobre **esta reunião** ou **todas** (com filtros), via `/api/perguntar` (retrieval por embeddings + Claude). **Toda resposta cita gravação + minuto; sem fonte, não responde** — regra inviolável.
+- **CI:** interpretador e schemas testados; retrieval/embeddings reais rodam com pgvector + chave; sem chave, mock exercita o caminho.
