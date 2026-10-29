@@ -6,3 +6,4 @@ export * from './providers';
 export * from './prompts';
 export * from './busca';
 export * from './integracoes';
+export * from './bot';

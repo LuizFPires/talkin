@@ -125,8 +125,11 @@ Plano de implementação por milestones. Cada milestone entrega algo usável e t
 > Webhook ioo completo e verificável (motor de regras e payload testados no CI; envio real com a URL do usuário). Calendário/Drive dependem de OAuth (credenciais do usuário) — scaffold com "Conectar", sincronização ao conectar (modo só-código).
 
 ## M8 — Bot de reunião (opcional)
-- [ ] Integração com API de bot de reunião (ex.: Recall.ai) para Meet, Teams e Zoom
-- [ ] Agendar o bot a partir do calendário
-- [ ] Controle de custo por hora e liga/desliga por reunião
+- [x] Integração com API de bot de reunião (ex.: Recall.ai) para Meet, Teams e Zoom — `BotProvider` (Recall + mock) + `/api/bot/agendar`
+- [x] Agendar o bot (colar o link da reunião; a partir do calendário quando conectado) — tela `/bot`
+- [x] Controle de custo por hora e liga/desliga por reunião — custo estimado antes de ativar + "Desligar"
+
+**Aceite:** o bot entra numa reunião em que o usuário não está no computador e a ata chega normalmente.
+> Código do M8 completo. O bot real roda com a chave do Recall.ai; sem chave, o mock exercita o fluxo. A gravação retorna via webhook do Recall (scaffold) e entra no pipeline (M1).
 
 **Aceite:** o bot entra numa reunião em que o usuário não está no computador e a ata chega normalmente.
