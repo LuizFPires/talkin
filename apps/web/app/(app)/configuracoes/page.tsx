@@ -196,9 +196,14 @@ export default function ConfiguracoesPage() {
           <Rotulo>Configurações</Rotulo>
           <h1 style={{ fontSize: 24, margin: '4px 0 0', fontWeight: 600 }}>Perfil e empresa</h1>
         </div>
-        <Link href="/configuracoes/modelos" style={{ ...botao, textDecoration: 'none' }}>
-          Modelos de ata
-        </Link>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Link href="/configuracoes/projetos" style={{ ...botao, textDecoration: 'none' }}>
+            Projetos
+          </Link>
+          <Link href="/configuracoes/modelos" style={{ ...botao, textDecoration: 'none' }}>
+            Modelos de ata
+          </Link>
+        </div>
       </header>
       {msg && <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{msg}</p>}
 

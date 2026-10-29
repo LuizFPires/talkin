@@ -94,18 +94,19 @@ Plano de implementação por milestones. Cada milestone entrega algo usável e t
 > Código do M4 completo. Render do PDF (Chromium/Playwright) e envio real de e-mail rodam no deploy; o gerador de HTML, a regeneração e os schemas são verificados no CI. E-mail via mailto (cliente do usuário revisa antes); SMTP/Resend é refinamento.
 
 ## M5 — Biblioteca, busca e "Pergunte"
-- [ ] Projetos/obras e filtros (pessoa, tipo, data)
-- [ ] Busca textual + embeddings (pgvector) por trecho
-- [ ] **Busca livre** (SPEC item 16):
-  - interpretação do texto em tema + filtros (obra, participante, plataforma, período, tipo) usando o cadastro da empresa;
-  - chips "Entendi assim" removíveis;
-  - resultados agrupados por reunião, ordenados por menções, com até 3 trechos e minutos;
-  - modos "por significado" e "palavra exata".
-- [ ] "Pergunte" sobre uma gravação e sobre todas, sempre com citação (gravação + minuto)
+- [x] Projetos/obras e filtros (pessoa, tipo, data) — CRUD em `/configuracoes/projetos` + filtros na busca livre
+- [x] Busca textual + embeddings (pgvector) por trecho — etapa `embed` + RPC `match_segments`
+- [x] **Busca livre** (SPEC item 16):
+  - interpretação do texto em tema + filtros (obra, participante, plataforma, período, tipo) — `interpretarBusca`
+  - chips "Entendi assim" removíveis — componente `BuscaLivre`
+  - resultados agrupados por reunião, ordenados por menções, com até 3 trechos e minutos — `/api/buscar`
+  - modos "por significado" e "palavra exata"
+- [x] "Pergunte" sobre uma gravação e sobre todas, sempre com citação (gravação + minuto) — `/api/perguntar`
 
 **Aceite:**
 - "concreto Galpão A com Marcos" mostra só as reuniões certas, com os trechos e minutos de cada menção.
 - Perguntar "o que foi combinado sobre o prazo da estrutura do galpão?" traz a resposta com link para o trecho certo.
+> Código do M5 completo. Busca por significado e Pergunte com retrieval real rodam com pgvector + chaves (OpenAI/Anthropic); sem chave, o mock exercita o fluxo e o Pergunte recusa sem fonte. Interpretador testado no CI.
 
 ## M6 — Falantes e pessoas
 - [ ] Renomear falantes com propagação para toda a gravação

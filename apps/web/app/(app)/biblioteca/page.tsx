@@ -4,6 +4,7 @@ import { isSupabaseConfigured } from '@/lib/supabase/env';
 import { formatDateBR, type RecordingSource, type RecordingStatus } from '@talkin/core';
 import { Card, Rotulo, Pilula } from '@talkin/ui';
 import { StatusBadge } from '@/components/status-badge';
+import { BuscaLivre } from '@/components/busca-livre';
 import { criarGravacaoVazia } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -77,6 +78,8 @@ export default async function BibliotecaPage() {
           </button>
         </form>
       </header>
+
+      {configurado && <BuscaLivre />}
 
       {!configurado && (
         <Card style={{ marginBottom: 16 }}>
