@@ -150,3 +150,9 @@ Cada etapa atualiza o status em `recordings` e pode ser reprocessada isoladament
 - **Tabela `meeting_bots`** (por empresa): plataforma, `meeting_url`, `provider_bot_id`, status (`agendado|entrando|gravando|saiu|erro`), `scheduled_at`, `cost_cents`, criado_por. RLS por empresa.
 - **Agendar/parar por reunião (SPEC 22):** colar a URL da reunião (Meet/Teams/Zoom) → **mostra o custo por hora antes de ativar** → agenda (bot entra nomeado "Talkin — gravador") → liga/desliga por reunião. O bot avisa no chat da reunião (nunca gravação oculta). A gravação retorna via webhook do Recall (scaffold) e entra no mesmo pipeline.
 - **CI:** cálculo de custo e provider testados; chamadas reais rodam com a chave do Recall.
+
+### M9 — PWA *(extra, pós-M8 — auto, a pedido)*
+- **Manifest** via rota de metadados do Next (`app/manifest.ts`): `display: standalone`, `theme_color`/`background_color` `#030707`, `start_url /`, nome Talkin.
+- **Ícone** `public/icon.svg` (quadrado, marca Human: fundo forest, acento menta) referenciado como `any` e `maskable`. PNGs 192/512/180 para Lighthouse/iOS ficam como passo manual (sem ferramenta de imagem no ambiente).
+- **Service worker** `public/sw.js`: precache do app shell, network-first para navegação (fallback offline), cache-first para assets estáticos; registrado por um client component só em produção.
+- **Metadados** no `layout.tsx`: `manifest`, `appleWebApp`, `themeColor` (viewport). HTTPS pelo Vercel.
