@@ -61,6 +61,9 @@ function makePorts() {
     async addCost(_id, cost) {
       state.cost = cost;
     },
+    async addAiCost(_id, cents) {
+      state.cost = { ...state.cost, aiCents: state.cost.aiCents + cents };
+    },
   };
   return { ports, state };
 }

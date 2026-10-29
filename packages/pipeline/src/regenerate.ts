@@ -34,7 +34,8 @@ export async function regenerateSummary(
     await ports.upsertJob(recordingId, 'extract', 'running');
     await ports.saveActionItems(recordingId, summaryId, content);
     await ports.upsertJob(recordingId, 'extract', 'done');
-    // Não mexe em custos aqui para não zerar o de transcrição (valores absolutos).
+    // Soma o custo de IA da regeneração ao total (sem tocar no de transcrição).
+    await ports.addAiCost(recordingId, ata.costCents);
     await ports.setStatus(recordingId, 'pronto');
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

@@ -203,5 +203,19 @@ export function createSupabasePorts(): PipelinePorts {
         })
         .eq('id', recordingId);
     },
+
+    async addAiCost(recordingId, cents) {
+      // service role: o guard permite alterar custo. Incremento (lê e soma).
+      const { data } = await db
+        .from('recordings')
+        .select('cost_ai_cents')
+        .eq('id', recordingId)
+        .single();
+      const atual = (data?.cost_ai_cents as number | undefined) ?? 0;
+      await db
+        .from('recordings')
+        .update({ cost_ai_cents: atual + cents })
+        .eq('id', recordingId);
+    },
   };
 }

@@ -6,10 +6,14 @@ import { buildAtaHtml } from './html';
  * do navegador instalado. Em produção, roda no worker/servidor.
  */
 export async function renderAtaPdf(doc: AtaDoc): Promise<Uint8Array> {
-  const { chromium } = await import('playwright-core');
+  // webpackIgnore evita que o bundler do Next rastreie o playwright-core
+  // (só existe/roda no servidor com Chromium instalado).
+  const { chromium } = await import(/* webpackIgnore: true */ 'playwright-core');
   const browser = await chromium.launch();
   try {
-    const page = await browser.newPage();
+    // Sem JS: a ata é HTML estático; nada de script deve rodar no render.
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
     // Bloqueia toda rede exceto as fontes (anti-SSRF). A logo deve vir como data: URI.
     const permitidos = new Set(['fonts.googleapis.com', 'fonts.gstatic.com']);
     await page.route('**', (route) => {

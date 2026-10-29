@@ -24,8 +24,15 @@ function minutos(ms: number[]): string {
 
 /** HTML da ata no estilo Human (fonte Sora). Executiva é o padrão (SPEC 28). */
 export function buildAtaHtml(doc: AtaDoc): string {
-  const accent = doc.org.accent_color || MENTA;
-  const template = doc.template ?? 'executiva';
+  // Validação antes de interpolar no <style>/class (anti-injeção de CSS/HTML).
+  const accent = /^#[0-9a-fA-F]{6}$/.test(doc.org.accent_color ?? '')
+    ? doc.org.accent_color!
+    : MENTA;
+  const template = (['executiva', 'formal', 'painel'] as const).includes(
+    doc.template as 'executiva' | 'formal' | 'painel',
+  )
+    ? doc.template!
+    : 'executiva';
   const { ata, recording, org } = doc;
   const ex = ata.extracao;
 

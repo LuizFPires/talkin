@@ -326,6 +326,7 @@ export default function ConfiguracoesPage() {
             <iframe
               title="Prévia da ata"
               srcDoc={previewHtml}
+              sandbox=""
               style={{ width: '100%', height: 520, border: 'none' }}
             />
           </div>

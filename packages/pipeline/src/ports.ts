@@ -38,6 +38,9 @@ export interface PipelinePorts {
     recordingId: string,
     cost: { transcriptionCents: number; aiCents: number },
   ): Promise<void>;
+
+  /** Incrementa o custo de IA (ex.: regeneração), sem zerar o de transcrição. */
+  addAiCost(recordingId: string, cents: number): Promise<void>;
 }
 
 export type Providers = {
