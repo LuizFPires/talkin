@@ -107,3 +107,12 @@ Cada etapa atualiza o status em `recordings` e pode ser reprocessada isoladament
 - **Limites** (SPEC 1): até 4 h (aviso aos 3h45, corta e encadeia nova gravação); AAC/M4A mono; pausa em ligação; aviso de espaço < 500 MB.
 - **Importar do Compartilhar** (iPhone/WhatsApp, SPEC 4): ponto de entrada via share intent; reaproveita o fluxo de upload.
 - **CI:** `packages/capture` entra na verificação (typecheck/test). O app Expo não roda no CI (toolchain nativo pesado); é exercitado localmente via Expo, como os esqueletos nativos.
+
+### M3 — Gravador desktop (reuniões online) *(auto — recomendado)*
+- **App Tauri (`apps/desktop`)**: janela compacta na bandeja/barra de menu; frontend Vite+TS (tema Human). Reaproveita `@talkin/capture` (`UploadQueue`) para o upload incremental, igual ao mobile.
+- **Captura nativa isolada** (CLAUDE.md): módulo Rust pequeno `src-tauri/src/capture/`, com `mod.rs` definindo o trait `AudioCapture` e implementações por SO atrás de `cfg`: `windows.rs` (WASAPI loopback, sem permissão extra) e `macos.rs` (ScreenCaptureKit/Core Audio, exige permissão de gravação de áudio do sistema). **Duas faixas separadas**: `eu` (microfone) × `outros` (áudio do sistema) — o que você disse nunca é atribuído a outra pessoa.
+- **Testes manuais por versão de SO** documentados em `apps/desktop/CAPTURE-TESTS.md`. O código nativo **não entra no CI** (precisa de Rust + SO alvo); roda localmente via Tauri.
+- **Detecção de reunião** (SPEC 3): heurística por processo/janela ativa (Teams, Zoom, Meet, WhatsApp) → sugere gravar com título/modelo; nunca grava sozinho sem a opção automática ligada.
+- **Permissões guiadas**: macOS passo a passo (áudio do sistema); Windows usa loopback sem permissão extra.
+- **Atalho global** iniciar/parar (⌘⇧R / Ctrl+Shift+R).
+- **Faixas no pipeline:** os blocos sobem marcados por faixa; a faixa `eu` já é o usuário, `outros` é diarizada. Integração fina com o pipeline (M1) é refinamento documentado.
