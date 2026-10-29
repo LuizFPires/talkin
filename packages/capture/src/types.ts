@@ -4,6 +4,8 @@ export type Chunk = {
   localPath: string;
   durationMs: number;
   bytes: number;
+  /** Faixa do desktop (SPEC 2): "eu" (microfone) × "outros" (sistema). Ausente no mobile. */
+  track?: 'eu' | 'outros';
 };
 
 export type ChunkState = 'pending' | 'uploading' | 'uploaded' | 'failed';
