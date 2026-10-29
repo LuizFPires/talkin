@@ -30,7 +30,8 @@ export default function IntegracoesPage() {
   const [orgId, setOrgId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [url, setUrl] = useState('');
-  const [secret, setSecret] = useState('');
+  const [secret, setSecret] = useState(''); // write-only: só envia se o admin digitar
+  const [temSecret, setTemSecret] = useState(false);
   const [importMeet, setImportMeet] = useState(false);
   const [regras, setRegras] = useState<RegraCalendario[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
@@ -57,14 +58,22 @@ export default function IntegracoesPage() {
       if (org) {
         const { data } = await supabase
           .from('integrations')
-          .select('ioo_webhook_url, webhook_secret, import_meet_teams, calendar_rules')
+          .select('ioo_webhook_url, import_meet_teams, calendar_rules')
           .eq('organization_id', org)
           .maybeSingle();
         if (data) {
           setUrl((data.ioo_webhook_url as string) ?? '');
-          setSecret((data.webhook_secret as string) ?? '');
           setImportMeet((data.import_meet_teams as boolean) ?? false);
           setRegras((data.calendar_rules as RegraCalendario[]) ?? []);
+        }
+        // Segredo nunca é carregado; só indicamos se está configurado (admin).
+        if (m?.role === 'admin') {
+          const { data: sec } = await supabase
+            .from('integration_secrets')
+            .select('webhook_secret')
+            .eq('organization_id', org)
+            .maybeSingle();
+          setTemSecret(Boolean((sec as { webhook_secret: string | null } | null)?.webhook_secret));
         }
       }
     })();
@@ -72,19 +81,28 @@ export default function IntegracoesPage() {
 
   async function salvar() {
     if (!orgId) return;
-    const { error } = await createClient()
-      .from('integrations')
-      .upsert(
-        {
-          organization_id: orgId,
-          ioo_webhook_url: url || null,
-          webhook_secret: secret || null,
-          import_meet_teams: importMeet,
-          calendar_rules: regras,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'organization_id' },
-      );
+    const supabase = createClient();
+    const { error } = await supabase.from('integrations').upsert(
+      {
+        organization_id: orgId,
+        ioo_webhook_url: url || null,
+        import_meet_teams: importMeet,
+        calendar_rules: regras,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'organization_id' },
+    );
+    // Só grava o segredo se o admin digitou um novo (não sobrescreve com vazio).
+    if (secret) {
+      await supabase
+        .from('integration_secrets')
+        .upsert(
+          { organization_id: orgId, webhook_secret: secret, updated_at: new Date().toISOString() },
+          { onConflict: 'organization_id' },
+        );
+      setTemSecret(true);
+      setSecret('');
+    }
     setMsg(error ? 'Não foi possível salvar.' : 'Integrações salvas.');
   }
 
@@ -129,7 +147,10 @@ export default function IntegracoesPage() {
           <input
             style={campo}
             disabled={!isAdmin}
-            placeholder="Segredo (assinatura HMAC)"
+            type="password"
+            placeholder={
+              temSecret ? 'Segredo configurado (digite para trocar)' : 'Segredo (assinatura HMAC)'
+            }
             value={secret}
             onChange={(e) => setSecret(e.target.value)}
           />

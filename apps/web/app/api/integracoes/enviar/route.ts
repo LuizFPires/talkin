@@ -1,12 +1,30 @@
 import { createHmac } from 'node:crypto';
+import { lookup } from 'node:dns/promises';
+import ipaddr from 'ipaddr.js';
 import { NextResponse } from 'next/server';
 import { AtaContent, buildWebhookPayload } from '@talkin/core';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, hasServiceRole } from '@/lib/supabase/admin';
 
 export const maxDuration = 30;
 
-/** Rejeita destinos que não sejam https público (anti-SSRF a redes internas). */
-function urlSeguro(raw: string): boolean {
+/** Um IP só é aceito se for unicast público (bloqueia privado/loopback/CGNAT/ULA/etc.). */
+function ipPublico(ip: string): boolean {
+  let p: ipaddr.IPv4 | ipaddr.IPv6;
+  try {
+    p = ipaddr.parse(ip);
+  } catch {
+    return false;
+  }
+  if (p.kind() === 'ipv6') {
+    const v6 = p as ipaddr.IPv6;
+    if (v6.isIPv4MappedAddress()) return ipPublico(v6.toIPv4Address().toString());
+  }
+  return p.range() === 'unicast';
+}
+
+/** Destino do webhook: https, host público e sem redirect para rede interna. */
+async function destinoSeguro(raw: string): Promise<boolean> {
   let u: URL;
   try {
     u = new URL(raw);
@@ -14,16 +32,23 @@ function urlSeguro(raw: string): boolean {
     return false;
   }
   if (u.protocol !== 'https:') return false;
-  const h = u.hostname.toLowerCase();
-  if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.internal')) return false;
-  if (/^(127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(h)) return false;
-  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(h)) return false;
-  if (h === '::1' || h.startsWith('fe80') || h.startsWith('fc') || h.startsWith('fd')) return false;
-  return true;
+  let host = u.hostname.toLowerCase();
+  if (host.startsWith('[') && host.endsWith(']')) host = host.slice(1, -1);
+  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.internal'))
+    return false;
+  try {
+    const addrs = await lookup(host, { all: true });
+    if (addrs.length === 0) return false;
+    return addrs.every((a) => ipPublico(a.address));
+  } catch {
+    return false;
+  }
 }
 
 /** Envia decisões/pendências ao ioo via webhook assinado. Só ata revisada (SPEC 21). */
 export async function POST(request: Request) {
+  if (!hasServiceRole()) return NextResponse.json({ error: 'Indisponível.' }, { status: 503 });
+
   const { recordingId } = (await request.json().catch(() => ({}))) as { recordingId?: string };
   if (!recordingId || !/^[0-9a-f-]{36}$/i.test(recordingId)) {
     return NextResponse.json({ error: 'Requisição inválida.' }, { status: 400 });
@@ -34,6 +59,10 @@ export async function POST(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+
+  // Só quem pode modificar a gravação dispara o envio (dono/admin).
+  const { data: canModify } = await supabase.rpc('can_modify_recording', { rec: recordingId });
+  if (!canModify) return NextResponse.json({ error: 'Não encontrado.' }, { status: 404 });
 
   const { data: rec } = await supabase
     .from('recordings')
@@ -57,36 +86,52 @@ export async function POST(request: Request) {
 
   const { data: integ } = await supabase
     .from('integrations')
-    .select('ioo_webhook_url, webhook_secret')
+    .select('ioo_webhook_url')
     .eq('organization_id', rec.organization_id)
     .maybeSingle();
   const url = integ?.ioo_webhook_url as string | undefined;
   if (!url) return NextResponse.json({ error: 'Webhook não configurado.' }, { status: 400 });
-  if (!urlSeguro(url)) {
+  if (!(await destinoSeguro(url))) {
     return NextResponse.json(
       { error: 'URL de webhook inválida (use https público).' },
       { status: 400 },
     );
   }
 
+  // Segredo lido só no servidor (service role), nunca exposto a membros.
+  const admin = createAdminClient();
+  const { data: sec } = await admin
+    .from('integration_secrets')
+    .select('webhook_secret')
+    .eq('organization_id', rec.organization_id)
+    .maybeSingle();
+  const secret = (sec?.webhook_secret as string | undefined) ?? '';
+
   const payload = buildWebhookPayload(rec.id, rec.title ?? '', parsed.data, true);
   const body = JSON.stringify(payload);
-  const secret = (integ?.webhook_secret as string | undefined) ?? '';
   const assinatura = secret ? createHmac('sha256', secret).update(body).digest('hex') : '';
 
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 10_000); // timeout de 10 s
   try {
     const res = await fetch(url, {
       method: 'POST',
+      redirect: 'manual', // não seguir redirect (anti-SSRF)
+      signal: ac.signal,
       headers: {
         'content-type': 'application/json',
         ...(assinatura ? { 'x-talkin-signature': assinatura } : {}),
       },
       body,
     });
-    if (!res.ok)
-      return NextResponse.json({ error: `Destino respondeu ${res.status}.` }, { status: 502 });
+    // 3xx (redirect) ou erro → falha genérica, sem ecoar o status do destino.
+    if (res.status >= 300) {
+      return NextResponse.json({ error: 'O destino não aceitou o envio.' }, { status: 502 });
+    }
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: 'Falha ao enviar ao destino.' }, { status: 502 });
+  } finally {
+    clearTimeout(timer);
   }
 }
