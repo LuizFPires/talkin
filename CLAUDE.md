@@ -116,3 +116,10 @@ Cada etapa atualiza o status em `recordings` e pode ser reprocessada isoladament
 - **Permissões guiadas**: macOS passo a passo (áudio do sistema); Windows usa loopback sem permissão extra.
 - **Atalho global** iniciar/parar (⌘⇧R / Ctrl+Shift+R).
 - **Faixas no pipeline:** os blocos sobem marcados por faixa; a faixa `eu` já é o usuário, `outros` é diarizada. Integração fina com o pipeline (M1) é refinamento documentado.
+
+### M4 — Modelos de ata e saídas *(auto — recomendado)*
+- **`packages/pdf`** (TS puro): `buildAtaHtml(dados, modelo)` gera o HTML da ata no estilo Human com a fonte **Sora** (Executiva padrão; Formal e Painel como variações). `renderAtaPdf(html)` usa `playwright-core` para HTML→PDF — **não roda no CI** (precisa de Chromium); o gerador de HTML é testado no CI. Nunca deixar título de seção órfão (CSS `break-inside`).
+- **Perfil e empresa (SPEC 27):** página `/configuracoes` com dados do usuário e da empresa, envio da logomarca (bucket `logos`, versão clara opcional), cor de destaque e modelo de PDF padrão, com **prévia ao vivo** da 1ª página. Só admin altera a empresa; cada um altera o próprio perfil.
+- **Modelos (SPEC 9):** sugestão automática por título/participantes (padrão `generico`); troca manual **regenera** a ata (re-roda a etapa `summarize` com o novo `template_id`, preservando edições do usuário por seção). Editor de modelos (seções, instruções) em `/configuracoes/modelos` — escrita restrita a gestor/admin.
+- **Saídas (SPEC 18):** PDF (Executiva), DOCX (lib `docx`), texto para WhatsApp (formatado), e-mail (confirma destinatários/texto antes) e **link privado com expiração** (7/30 dias ou sem expiração; áudio e transcrição completa não vão por padrão). Toda saída respeita RLS.
+- **Edição da ata:** rascunho → Revisada; edições do usuário preservadas ao regenerar (só seções não editadas mudam).

@@ -26,11 +26,17 @@ export default async function GravacaoPage({ params }: { params: Promise<{ id: s
   const supabase = await createClient();
   const { data: rec } = await supabase
     .from('recordings')
-    .select('id, title, status, source, duration_s, created_at')
+    .select('id, title, status, source, duration_s, created_at, template_id')
     .eq('id', id)
     .is('deleted_at', null)
     .maybeSingle();
   if (!rec) notFound();
+
+  const { data: templatesData } = await supabase
+    .from('templates')
+    .select('id, key, name')
+    .order('name', { ascending: true });
+  const templates = (templatesData as { id: string; key: string; name: string }[] | null) ?? [];
 
   const { data: summary } = await supabase
     .from('summaries')
@@ -77,6 +83,7 @@ export default async function GravacaoPage({ params }: { params: Promise<{ id: s
 
   return (
     <GravacaoView
+      recordingId={rec.id}
       titulo={rec.title?.trim() || 'Sem título'}
       status={rec.status as RecordingStatus}
       criadoEm={rec.created_at}
@@ -88,6 +95,8 @@ export default async function GravacaoPage({ params }: { params: Promise<{ id: s
         falante: s.speaker?.display_name || s.speaker?.label || 'Falante',
       }))}
       audioUrl={audioUrl}
+      templates={templates}
+      templateId={rec.template_id as string | null}
     />
   );
 }

@@ -71,7 +71,8 @@ export async function processRecording(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     // Marca a etapa que falhou (permite reprocessar só ela depois).
-    if (step) await ports.upsertJob(recordingId, step, 'error', message);
+    // Mensagem curta para não persistir payload da ata em diagnóstico.
+    if (step) await ports.upsertJob(recordingId, step, 'error', message.slice(0, 160));
     await ports.setStatus(recordingId, 'erro');
     throw new PipelineError(message, { cause: err });
   }

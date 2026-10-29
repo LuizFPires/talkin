@@ -126,6 +126,35 @@ export function createSupabasePorts(): PipelinePorts {
       };
     },
 
+    async getSegments(recordingId) {
+      const { data: transcript } = await db
+        .from('transcripts')
+        .select('id')
+        .eq('recording_id', recordingId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!transcript) return [];
+      const { data } = await db
+        .from('segments')
+        .select('start_ms, end_ms, text, speaker:speakers(label, track)')
+        .eq('transcript_id', transcript.id)
+        .order('start_ms', { ascending: true });
+      type Row = {
+        start_ms: number;
+        end_ms: number;
+        text: string;
+        speaker: { label: string; track: 'eu' | 'outros' | 'desconhecido' } | null;
+      };
+      return ((data as unknown as Row[] | null) ?? []).map((s) => ({
+        speakerLabel: s.speaker?.label ?? 'Falante',
+        track: s.speaker?.track ?? 'desconhecido',
+        startMs: s.start_ms,
+        endMs: s.end_ms,
+        text: s.text,
+      }));
+    },
+
     async getContext(recordingId) {
       const { data: rec } = await db
         .from('recordings')
@@ -172,6 +201,20 @@ export function createSupabasePorts(): PipelinePorts {
           cost_transcription_cents: cost.transcriptionCents,
           cost_ai_cents: cost.aiCents,
         })
+        .eq('id', recordingId);
+    },
+
+    async addAiCost(recordingId, cents) {
+      // service role: o guard permite alterar custo. Incremento (lê e soma).
+      const { data } = await db
+        .from('recordings')
+        .select('cost_ai_cents')
+        .eq('id', recordingId)
+        .single();
+      const atual = (data?.cost_ai_cents as number | undefined) ?? 0;
+      await db
+        .from('recordings')
+        .update({ cost_ai_cents: atual + cents })
         .eq('id', recordingId);
     },
   };

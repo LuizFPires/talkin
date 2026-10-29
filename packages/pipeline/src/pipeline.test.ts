@@ -40,6 +40,17 @@ function makePorts() {
     async getContext() {
       return { projectName: 'Galpão A' };
     },
+    async getSegments() {
+      return [
+        {
+          speakerLabel: 'Falante 1',
+          track: 'desconhecido' as const,
+          startMs: 0,
+          endMs: 4000,
+          text: 'oi',
+        },
+      ];
+    },
     async saveSummary(_id, _tpl, content) {
       state.summary = content;
       return 's1';
@@ -49,6 +60,9 @@ function makePorts() {
     },
     async addCost(_id, cost) {
       state.cost = cost;
+    },
+    async addAiCost(_id, cents) {
+      state.cost = { ...state.cost, aiCents: state.cost.aiCents + cents };
     },
   };
   return { ports, state };

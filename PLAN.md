@@ -82,27 +82,16 @@ Plano de implementação por milestones. Cada milestone entrega algo usável e t
 > Scaffold Tauri + frontend em código; captura nativa (Rust WASAPI/ScreenCaptureKit) isolada com testes manuais por SO (`CAPTURE-TESTS.md`) — não entra no CI. Aceite roda localmente com Rust + SO alvo + Supabase conectado.
 
 ## M4 — Modelos de ata e saídas
-- [ ] Modelos iniciais:
-  - Reunião de obra
-  - Visita técnica
-  - Cliente
-  - Fornecedor
-  - Sócios/investidores
-  - Genérico
-- [ ] Sugestão automática do modelo + troca manual com regeneração
-- [ ] Editor de modelos (seções, instruções, campos a extrair)
-- [ ] Trechos da ata vinculados ao minuto do áudio
-- [ ] PDF padrão **Executiva** (estilo Human, fonte Sora) conforme SPEC item 28; Formal e Painel como alternativas de exportação
-- [ ] **Perfil e empresa** (SPEC item 27):
-  - menu de perfil em todas as telas;
-  - dados do usuário;
-  - dados da empresa;
-  - envio da logomarca (bucket próprio, versão clara opcional para cabeçalho escuro);
-  - cor de destaque e modelo de PDF padrão;
-  - prévia ao vivo do PDF.
-- [ ] Exportar DOCX, texto para WhatsApp, envio por e-mail, link privado com expiração
+- [x] Modelos iniciais (obra, visita, cliente, fornecedor, sócios, genérico) — seed global (migration 0004)
+- [x] Sugestão automática do modelo + troca manual com regeneração — `/api/regenerate` + seletor
+- [x] Editor de modelos (seções, instruções) — `/configuracoes/modelos` (escrita gestor/admin)
+- [x] Trechos da ata vinculados ao minuto do áudio — `minutos_ms` + pílulas de minuto
+- [x] PDF padrão **Executiva** (estilo Human, fonte Sora) — `packages/pdf`; Formal/Painel como variações
+- [x] **Perfil e empresa** (SPEC item 27) — `/configuracoes`: perfil, empresa, logo, cor, modelo de PDF, prévia ao vivo
+- [x] Exportar DOCX, texto para WhatsApp, envio por e-mail, link privado com expiração — rotas `/api/pdf` e `/api/docx`, WhatsApp/e-mail na tela, `shares` + `/compartilhar/[token]`
 
 **Aceite:** ata de reunião de obra sai em PDF A4 com a logo, os dados e a cor da empresa cadastrados no perfil, na fonte Sora, e é enviada por e-mail sem edição manual de layout.
+> Código do M4 completo. Render do PDF (Chromium/Playwright) e envio real de e-mail rodam no deploy; o gerador de HTML, a regeneração e os schemas são verificados no CI. E-mail via mailto (cliente do usuário revisa antes); SMTP/Resend é refinamento.
 
 ## M5 — Biblioteca, busca e "Pergunte"
 - [ ] Projetos/obras e filtros (pessoa, tipo, data)
