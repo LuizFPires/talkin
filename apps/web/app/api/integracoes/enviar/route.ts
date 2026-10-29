@@ -1,5 +1,7 @@
 import { createHmac } from 'node:crypto';
-import { lookup } from 'node:dns/promises';
+import { lookup as lookupPromise } from 'node:dns/promises';
+import { lookup as dnsLookup, type LookupAddress } from 'node:dns';
+import { Agent, fetch as httpFetch } from 'undici';
 import ipaddr from 'ipaddr.js';
 import { NextResponse } from 'next/server';
 import { AtaContent, buildWebhookPayload } from '@talkin/core';
@@ -37,13 +39,37 @@ async function destinoSeguro(raw: string): Promise<boolean> {
   if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.internal'))
     return false;
   try {
-    const addrs = await lookup(host, { all: true });
+    const addrs = await lookupPromise(host, { all: true });
     if (addrs.length === 0) return false;
     return addrs.every((a) => ipPublico(a.address));
   } catch {
     return false;
   }
 }
+
+/**
+ * Dispatcher que PINA a conexão ao IP validado: o lookup usado pela conexão
+ * real revalida cada endereço com ipPublico, fechando a janela de DNS rebinding.
+ */
+type LookupCb = (err: Error | null, address: string | LookupAddress[], family?: number) => void;
+const safeAgent = new Agent({
+  connect: {
+    lookup: (hostname: string, options: { all?: boolean }, callback: LookupCb) => {
+      dnsLookup(
+        hostname,
+        { ...options, all: true, verbatim: true },
+        (err: Error | null, addresses: { address: string; family: number }[]) => {
+          if (err) return callback(err, '', 0);
+          if (addresses.length === 0 || !addresses.every((a) => ipPublico(a.address))) {
+            return callback(new Error('IP não permitido'), '', 0);
+          }
+          if (options.all) callback(null, addresses);
+          else callback(null, addresses[0]!.address, addresses[0]!.family);
+        },
+      );
+    },
+  },
+});
 
 /** Envia decisões/pendências ao ioo via webhook assinado. Só ata revisada (SPEC 21). */
 export async function POST(request: Request) {
@@ -114,10 +140,11 @@ export async function POST(request: Request) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 10_000); // timeout de 10 s
   try {
-    const res = await fetch(url, {
+    const res = await httpFetch(url, {
       method: 'POST',
       redirect: 'manual', // não seguir redirect (anti-SSRF)
       signal: ac.signal,
+      dispatcher: safeAgent, // pina a conexão ao IP validado (anti DNS rebinding)
       headers: {
         'content-type': 'application/json',
         ...(assinatura ? { 'x-talkin-signature': assinatura } : {}),
