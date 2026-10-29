@@ -42,7 +42,7 @@ function render(status: string, meeting: Meeting) {
       }
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
         <span style="width:9px;height:9px;border-radius:50%;background:${recording ? '#ff7a7a' : '#2b2b2b'}"></span>
-        <span style="font-size:13px;color:#98989d">${status}</span>
+        <span style="font-size:13px;color:#98989d">${esc(status)}</span>
       </div>
       <button id="toggle" style="width:100%;padding:12px;border-radius:9999px;border:1px solid #94efda;background:${recording ? 'transparent' : '#94efda'};color:${recording ? '#f5f5f7' : '#04221a'};font-weight:600;cursor:pointer">
         ${recording ? 'Parar' : 'Gravar esta reunião'}
@@ -81,12 +81,15 @@ async function start() {
     render('Empresa não encontrada.', null);
     return;
   }
-  const { data: rec } = await supabase
+  const { data: rec, error: recErr } = await supabase
     .from('recordings')
     .insert({ organization_id: org, created_by: user.id, source: 'meet', title: '' })
     .select('id')
     .single();
-  if (!rec) return;
+  if (recErr || !rec) {
+    render(`Não foi possível criar a gravação: ${recErr?.message ?? 'erro'}`, null);
+    return;
+  }
 
   recordingId = rec.id;
   queue = createUploadQueue(org, rec.id);
@@ -107,6 +110,9 @@ async function stop() {
   queue = null;
   recordingId = null;
 }
+
+// Atalho global (⌘⇧R / Ctrl+Shift+R) iniciar/parar.
+void listen('shortcut-toggle', () => void toggle());
 
 // Blocos emitidos pelo módulo nativo (duas faixas) → fila de upload.
 void listen<ChunkEvent>('chunk', async (e) => {

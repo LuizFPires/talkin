@@ -6,6 +6,7 @@ mod meeting;
 
 use std::sync::Mutex;
 use tauri::{Emitter, Manager, State};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 use capture::{new_capture, AudioCapture};
 
@@ -19,7 +20,10 @@ fn start_capture(
     app: tauri::AppHandle,
     state: State<'_, CaptureState>,
 ) -> Result<(), String> {
-    let out_dir = std::env::temp_dir().join("talkin").join(&recording_id);
+    // Grava sob o diretório de dados do app (coberto pelo escopo do plugin-fs),
+    // não em $TEMP — assim o frontend consegue ler os blocos para enviar.
+    let base = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    let out_dir = base.join("recordings").join(&recording_id);
     std::fs::create_dir_all(&out_dir).map_err(|e| e.to_string())?;
 
     let mut capture = new_capture(out_dir).map_err(|e| e.to_string())?;
@@ -56,7 +60,12 @@ fn main() {
         .manage(CaptureState::default())
         .setup(|app| {
             // Atalho global iniciar/parar (⌘⇧R / Ctrl+Shift+R) → evento ao frontend.
-            let _ = app.handle();
+            let handle = app.handle().clone();
+            app.global_shortcut().on_shortcut("CmdOrCtrl+Shift+R", move |_app, _sc, event| {
+                if event.state == ShortcutState::Pressed {
+                    let _ = handle.emit("shortcut-toggle", ());
+                }
+            })?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

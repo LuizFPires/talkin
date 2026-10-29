@@ -44,6 +44,7 @@ function uploader(organizationId: string, recordingId: string): ChunkUploader {
           storage_path: path,
           duration_s: Math.round(item.durationMs / 1000),
           bytes: item.bytes,
+          track, // metadado da faixa (índice é global entre as faixas)
           uploaded_at: new Date().toISOString(),
         },
         { onConflict: 'recording_id,index', ignoreDuplicates: true },

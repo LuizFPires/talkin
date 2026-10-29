@@ -15,6 +15,11 @@ pub enum Track {
 }
 
 /// Um bloco gravado em disco, pronto para o frontend enfileirar.
+///
+/// INVARIANTE: `index` é GLOBAL e monotônico, COMPARTILHADO entre as duas faixas
+/// (eu=0, outros=1, eu=2, …). Nunca reinicie a contagem por faixa — a fila e a
+/// tabela `recording_chunks` identificam o bloco por (recording_id, index), e
+/// índices por faixa colidiriam, descartando silenciosamente uma faixa inteira.
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChunkEvent {
