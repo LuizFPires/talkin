@@ -61,14 +61,15 @@ Plano de implementação por milestones. Cada milestone entrega algo usável e t
 > Pipeline fim a fim em código (worker em `/api/process`). O aceite com áudio real roda ao conectar Supabase + chaves Deepgram/Anthropic; sem chaves, o mock exercita o fluxo.
 
 ## M2 — Gravação presencial (celular)
-- [ ] App Expo com gravação em segundo plano (tela bloqueada) por até 4 h
-- [ ] Gravação em blocos de 30–60 s, salvos localmente e enviados de forma incremental
-- [ ] Retomada após queda de rede ou fechamento do app; fila offline
-- [ ] Indicador de gravação + lembrete de avisar participantes
-- [ ] Marcar momento importante durante a gravação (vira destaque na ata)
-- [ ] Importar gravação de chamada do iPhone / áudio do WhatsApp pelo menu Compartilhar
+- [x] App Expo com gravação em segundo plano (tela bloqueada) por até 4 h — `expo-keep-awake`, limite/aviso em `RecordingSession`
+- [x] Gravação em blocos de 30–60 s, salvos localmente e enviados de forma incremental — `MeetingRecorder` + `UploadQueue`
+- [x] Retomada após queda de rede ou fechamento do app; fila offline — `UploadQueue` persistida (AsyncStorage), nunca descarta bloco
+- [x] Indicador de gravação + lembrete de avisar participantes — tela Gravando
+- [x] Marcar momento importante durante a gravação (vira destaque na ata) — momentos salvos em `recordings.highlights`
+- [~] Importar gravação de chamada do iPhone / áudio do WhatsApp pelo menu Compartilhar — entrada via share intent (refinamento nativo pendente)
 
 **Aceite:** reunião de obra de 2 h gravada com o celular bloqueado no bolso, sem perder nenhum trecho.
+> App Expo em código (núcleo `@talkin/capture` testado: fila nunca perde bloco). Aceite em device real roda com o build Expo + Supabase conectado. O app Expo não entra no CI (toolchain nativo); `packages/capture` sim.
 
 ## M3 — Gravador desktop (reuniões online)
 - [ ] App Tauri na barra de menu (macOS) / bandeja (Windows)
