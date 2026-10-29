@@ -64,6 +64,11 @@ export function createSupabasePorts(): PipelinePorts {
     },
 
     async saveTranscript(recordingId, result: TranscriptionResult) {
+      // Idempotente: limpa transcrição/falantes anteriores (reprocesso não duplica).
+      // segments cai em cascata com transcripts; speakers são por gravação.
+      await db.from('transcripts').delete().eq('recording_id', recordingId);
+      await db.from('speakers').delete().eq('recording_id', recordingId);
+
       const { data: transcript, error } = await db
         .from('transcripts')
         .insert({ recording_id: recordingId, language: result.language, provider: result.provider })
@@ -132,6 +137,8 @@ export function createSupabasePorts(): PipelinePorts {
     },
 
     async saveSummary(recordingId, templateId, content: AtaContent) {
+      // Idempotente: substitui a ata anterior (reprocesso não acumula).
+      await db.from('summaries').delete().eq('recording_id', recordingId);
       const { data, error } = await db
         .from('summaries')
         .insert({ recording_id: recordingId, template_id: templateId, status: 'rascunho', content })
@@ -142,6 +149,8 @@ export function createSupabasePorts(): PipelinePorts {
     },
 
     async saveActionItems(recordingId, summaryId, content: AtaContent) {
+      // Idempotente: limpa pendências anteriores da gravação.
+      await db.from('action_items').delete().eq('recording_id', recordingId);
       const pend = content.extracao.pendencias;
       if (!pend.length) return;
       await db.from('action_items').insert(

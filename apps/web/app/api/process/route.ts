@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { processRecording, selectProviders } from '@talkin/pipeline';
 import { createSupabasePorts } from '@/lib/pipeline-ports';
-import { hasServiceRole } from '@/lib/supabase/admin';
+import { createAdminClient, hasServiceRole } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 export const maxDuration = 300;
@@ -35,13 +35,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Não encontrado.' }, { status: 404 });
   }
 
-  // Só processa gravações em estado processável (evita reprocessar à toa).
-  const { data: rec } = await user
+  // Claim atômico (compare-and-set): só um worker processa de cada vez.
+  // Se o status não estiver processável, nenhuma linha volta → 409.
+  const admin = createAdminClient();
+  const { data: claimed } = await admin
     .from('recordings')
-    .select('status')
+    .update({ status: 'transcrevendo' })
     .eq('id', recordingId)
+    .in('status', ['enviando', 'erro'])
+    .select('id')
     .maybeSingle();
-  if (!rec || !['enviando', 'erro'].includes(rec.status)) {
+  if (!claimed) {
     return NextResponse.json(
       { error: 'Gravação não está pronta para processar.' },
       { status: 409 },

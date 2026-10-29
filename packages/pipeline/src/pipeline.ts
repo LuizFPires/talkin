@@ -1,4 +1,4 @@
-import { AtaContent } from '@talkin/core';
+import { AtaContent, type JobStep } from '@talkin/core';
 import type { PipelinePorts, Providers } from './ports';
 
 /**
@@ -11,27 +11,32 @@ export async function processRecording(
   ports: PipelinePorts,
   providers: Providers,
 ): Promise<void> {
+  let step: JobStep | null = null;
   try {
     // 1. Preparar áudio (concatenar blocos + normalizar)
-    await ports.upsertJob(recordingId, 'normalize', 'running');
+    step = 'normalize';
+    await ports.upsertJob(recordingId, step, 'running');
     await ports.setStatus(recordingId, 'transcrevendo');
     const audioPath = await ports.prepareAudio(recordingId);
-    await ports.upsertJob(recordingId, 'normalize', 'done');
+    await ports.upsertJob(recordingId, step, 'done');
 
     // 2. Transcrever com diarização
-    await ports.upsertJob(recordingId, 'transcribe', 'running');
+    step = 'transcribe';
+    await ports.upsertJob(recordingId, step, 'running');
     const transcription = await providers.transcription.transcribe({ audioPath });
-    await ports.upsertJob(recordingId, 'transcribe', 'done');
+    await ports.upsertJob(recordingId, step, 'done');
 
     // 3. Segmentar (persistir transcript + trechos + falantes)
+    step = 'segment';
     await ports.setStatus(recordingId, 'segmentando');
-    await ports.upsertJob(recordingId, 'segment', 'running');
+    await ports.upsertJob(recordingId, step, 'running');
     await ports.saveTranscript(recordingId, transcription);
-    await ports.upsertJob(recordingId, 'segment', 'done');
+    await ports.upsertJob(recordingId, step, 'done');
 
     // 4. Gerar a ata + extração estruturada
+    step = 'summarize';
     await ports.setStatus(recordingId, 'resumindo');
-    await ports.upsertJob(recordingId, 'summarize', 'running');
+    await ports.upsertJob(recordingId, step, 'running');
     const template = await ports.getTemplate(recordingId);
     const context = await ports.getContext(recordingId);
     const ata = await providers.ata.generate({
@@ -43,16 +48,18 @@ export async function processRecording(
     // Valida a saída da IA antes de salvar (nada inválido entra).
     const content = AtaContent.parse(ata.content);
     const summaryId = await ports.saveSummary(recordingId, template.templateId, content);
-    await ports.upsertJob(recordingId, 'summarize', 'done');
+    await ports.upsertJob(recordingId, step, 'done');
 
     // 5. Extração → pendências como itens
+    step = 'extract';
     await ports.setStatus(recordingId, 'extraindo');
-    await ports.upsertJob(recordingId, 'extract', 'running');
+    await ports.upsertJob(recordingId, step, 'running');
     await ports.saveActionItems(recordingId, summaryId, content);
-    await ports.upsertJob(recordingId, 'extract', 'done');
+    await ports.upsertJob(recordingId, step, 'done');
 
     // 6. Embeddings — no-op no M1 (busca semântica é M5)
-    await ports.upsertJob(recordingId, 'embed', 'done');
+    step = 'embed';
+    await ports.upsertJob(recordingId, step, 'done');
 
     // Custos
     await ports.addCost(recordingId, {
@@ -63,6 +70,8 @@ export async function processRecording(
     await ports.setStatus(recordingId, 'pronto');
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    // Marca a etapa que falhou (permite reprocessar só ela depois).
+    if (step) await ports.upsertJob(recordingId, step, 'error', message);
     await ports.setStatus(recordingId, 'erro');
     throw new PipelineError(message, { cause: err });
   }

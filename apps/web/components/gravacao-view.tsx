@@ -1,7 +1,13 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { type AtaContent, formatDateBR, formatMinute, type RecordingStatus } from '@talkin/core';
+import {
+  type AtaContent,
+  formatBRL,
+  formatDateBR,
+  formatMinute,
+  type RecordingStatus,
+} from '@talkin/core';
 import { Card, Pilula, Rotulo, ToggleSegmentado } from '@talkin/ui';
 import { StatusBadge } from './status-badge';
 
@@ -165,7 +171,10 @@ function AbaAta({
             {extracao.valores.map((v, i) => (
               <li key={i} style={item}>
                 <span>
-                  {v.descricao} — {v.valor} {v.unidade}
+                  {v.descricao} —{' '}
+                  {v.unidade === 'R$'
+                    ? formatBRL(v.valor)
+                    : `${v.valor.toLocaleString('pt-BR')} ${v.unidade}`}
                 </span>
                 {v.minuto_ms !== null && <MinutoPill ms={v.minuto_ms} />}
               </li>

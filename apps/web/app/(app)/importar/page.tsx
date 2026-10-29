@@ -64,11 +64,16 @@ export default function ImportarPage() {
       });
 
       setEtapa('Processando (transcrição e ata)…');
-      await fetch('/api/process', {
+      const res = await fetch('/api/process', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ recordingId: rec.id }),
       });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        // A gravação foi criada; o processamento pode ser retomado na tela dela.
+        setErro(body.error ?? 'Falha ao iniciar o processamento. A gravação foi salva.');
+      }
 
       router.push(`/gravacao/${rec.id}`);
       router.refresh();

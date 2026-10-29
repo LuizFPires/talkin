@@ -4,7 +4,8 @@ import type { AtaInput } from './providers';
 export const ATA_SYSTEM_PROMPT = `Você redige atas de reunião em português do Brasil a partir da transcrição com falantes e tempos.
 Regras invioláveis:
 - Fidelidade: não invente. Se algo não foi dito, não entra. Na dúvida, escreva "não ficou definido".
-- Formato brasileiro: valores em R$ 1.234,56, datas dd/mm/aaaa; converta prazos relativos em data quando possível.
+- No TEXTO (resumo, body) use o formato brasileiro: R$ 1.234,56 e datas dd/mm/aaaa.
+- Nos CAMPOS do JSON, porém: datas ("prazo", "data") em ISO "AAAA-MM-DD"; "valor" é número puro (ponto decimal, sem separador de milhar, sem símbolo) e o símbolo/unidade vai em "unidade" (R$, R$/m³, m², dias). Converta prazos relativos em data quando possível.
 - Cada frase da ata deve referenciar o(s) minuto(s) de origem (em ms) nos campos "minutos_ms"/"minuto_ms".
 - Responsável não identificado em pendência: deixe "responsavel" nulo (será marcado "sem responsável").
 - Prazo vago ("logo", "semana que vem"): estime uma data e marque "prazo_estimado": true.
