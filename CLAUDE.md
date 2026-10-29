@@ -131,3 +131,10 @@ Cada etapa atualiza o status em `recordings` e pode ser reprocessada isoladament
 - **Projetos/obras e filtros:** CRUD de projetos; filtros por projeto, pessoa, tipo e período na biblioteca.
 - **"Pergunte" (SPEC 17):** chat sobre **esta reunião** ou **todas** (com filtros), via `/api/perguntar` (retrieval por embeddings + Claude). **Toda resposta cita gravação + minuto; sem fonte, não responde** — regra inviolável.
 - **CI:** interpretador e schemas testados; retrieval/embeddings reais rodam com pgvector + chave; sem chave, mock exercita o caminho.
+
+### M6 — Falantes e pessoas *(auto — recomendado)*
+- **Tabela `people`** (organization_id, name, empresa, papel, contato), com RLS por empresa; `speakers.person_id` e `action_items.assignee_person_id` ganham FK para `people` (SET NULL). Identificação por voz é opt-in e fica para depois (dado biométrico, SPEC 8).
+- **Renomear falante (SPEC 8):** editar `speakers.display_name` propaga para toda a gravação (os trechos referenciam o falante por id); e dá para **ligar o falante a uma pessoa** cadastrada.
+- **Cadastro de pessoas (SPEC 26):** `/configuracoes/pessoas` CRUD (nome, empresa, papel, contato); escrita por membros da empresa.
+- **Sugestão de nome:** ao renomear, a UI lista as pessoas cadastradas para escolher; sugestão por voz é refinamento futuro.
+- **Pendências por pessoa (SPEC 14):** atribuir uma pendência a uma pessoa cadastrada (`assignee_person_id`); exibe o nome.

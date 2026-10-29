@@ -200,6 +200,9 @@ export default function ConfiguracoesPage() {
           <Link href="/configuracoes/projetos" style={{ ...botao, textDecoration: 'none' }}>
             Projetos
           </Link>
+          <Link href="/configuracoes/pessoas" style={{ ...botao, textDecoration: 'none' }}>
+            Pessoas
+          </Link>
           <Link href="/configuracoes/modelos" style={{ ...botao, textDecoration: 'none' }}>
             Modelos de ata
           </Link>

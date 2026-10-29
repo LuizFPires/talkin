@@ -109,11 +109,12 @@ Plano de implementação por milestones. Cada milestone entrega algo usável e t
 > Código do M5 completo. Busca por significado e Pergunte com retrieval real rodam com pgvector + chaves (OpenAI/Anthropic); sem chave, o mock exercita o fluxo e o Pergunte recusa sem fonte. Interpretador testado no CI.
 
 ## M6 — Falantes e pessoas
-- [ ] Renomear falantes com propagação para toda a gravação
-- [ ] Cadastro de pessoas (nome, empresa, papel) e sugestão de nome em novas gravações
-- [ ] Pendências atribuídas a pessoas cadastradas
+- [x] Renomear falantes com propagação para toda a gravação — editar `speakers.display_name` (trechos referenciam o falante por id)
+- [x] Cadastro de pessoas (nome, empresa, papel) e sugestão de nome em novas gravações — `/configuracoes/pessoas` + dropdown ao ligar falante
+- [x] Pendências atribuídas a pessoas cadastradas — `action_items.assignee_person_id` com dropdown na gravação
 
 **Aceite:** numa reunião recorrente, os falantes já vêm nomeados corretamente na maioria das vezes.
+> Código do M6 completo. Renome/ligação de falantes e atribuição de pendências na tela da gravação; sugestão por voz (dado biométrico) fica como refinamento opt-in futuro.
 
 ## M7 — Integrações
 - [ ] Calendário Google / Outlook:
