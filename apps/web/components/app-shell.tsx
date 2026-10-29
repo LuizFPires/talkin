@@ -18,6 +18,15 @@ export function AppShell({ email, children }: { email: string; children: React.R
 
   async function sair() {
     await createClient().auth.signOut();
+    // Limpa caches do PWA no logout (não deixa nada do usuário no dispositivo).
+    if (typeof caches !== 'undefined') {
+      try {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      } catch {
+        // ignora
+      }
+    }
     router.push('/login');
     router.refresh();
   }
