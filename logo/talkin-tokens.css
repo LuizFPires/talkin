@@ -1,0 +1,11 @@
+/* talkin v1.0 - paleta digital proposta em 29/10/2026 */
+:root {
+  --talkin-forest: #0D2020;
+  --talkin-mint: #98EBD7;
+  --talkin-white: #F5F7F7;
+  --talkin-font: Arial, Helvetica, sans-serif;
+  --talkin-body-size: 1rem;
+  --talkin-line-height: 1.5;
+  --talkin-focus-color: #98EBD7; /* para superfícies escuras */
+}
+/* Preservar o lettering como arte; esta fonte é apenas de apoio. */

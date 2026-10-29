@@ -23,9 +23,9 @@ Plano de implementação por milestones. Cada milestone entrega algo usável e t
 ---
 
 ## M0 — Fundação
-- [ ] Repositório monorepo (`apps/web`, `apps/mobile`, `apps/desktop`, `packages/core`)
-- [ ] Supabase: auth, organizações/usuários, buckets de áudio com RLS
-- [ ] Modelo de dados:
+- [x] Repositório monorepo (`apps/web`, `apps/mobile`, `apps/desktop`, `packages/core`, `packages/ui`)
+- [x] Supabase: auth, organizações/usuários, buckets de áudio com RLS
+- [x] Modelo de dados:
 
 | Tabela | Conteúdo |
 |---|---|
@@ -41,13 +41,14 @@ Plano de implementação por milestones. Cada milestone entrega algo usável e t
 | `organizations` | empresa: dados cadastrais, logomarca, cor, modelo de PDF padrão |
 | `profiles` | usuário: nome, cargo, contato, assinatura, papel |
 
-- [ ] Fila de processamento com status (enviado → transcrevendo → resumindo → pronto / erro)
-- [ ] Design system Human aplicado no `packages/ui`:
+- [x] Fila de processamento com status (enviado → transcrevendo → resumindo → pronto / erro) — `recordings.status` + `processing_jobs`
+- [x] Design system Human aplicado no `packages/ui`:
   - tokens de cor do tema escuro, degradês, raios e rótulos;
   - fontes Inter (interface), Sora (documentos) e mono (minutos);
   - componentes base: sidebar, card, busca, toggle segmentado, pílula, rótulo.
 
 **Aceite:** login funciona e uma gravação vazia aparece na lista com status.
+> Código do M0 completo (auth, onboarding, biblioteca com status, RPC `create_organization`, RLS, buckets). O aceite roda ao conectar o Supabase (modo só-código: sem credenciais nesta fase).
 
 ## M1 — Pipeline com importação (prova de valor)
 - [ ] Upload de áudio/vídeo na web (mp3, m4a, wav, mp4, webm, opus)
