@@ -99,22 +99,39 @@ create trigger profiles_email_trg
   before insert or update on profiles
   for each row execute function public.profiles_set_email();
 
--- Impede que o cliente mexa em campos de custo/billing (só service_role).
+-- Campos de servidor (custo, status de pipeline, dono/empresa) só mudam via service_role.
+-- Vale para INSERT e UPDATE; o cliente nunca escreve billing nem forja estado.
 create or replace function public.recordings_guard_server_fields()
 returns trigger
 language plpgsql security definer set search_path = public
 as $$
 begin
   if auth.role() is distinct from 'service_role' then
-    new.cost_transcription_cents := old.cost_transcription_cents;
-    new.cost_ai_cents := old.cost_ai_cents;
+    if tg_op = 'INSERT' then
+      -- cliente começa sem custo e só em estados de captura
+      new.cost_transcription_cents := 0;
+      new.cost_ai_cents := 0;
+      if new.status is null or new.status not in ('gravando', 'enviando', 'erro') then
+        new.status := 'enviando';
+      end if;
+    else -- UPDATE
+      new.cost_transcription_cents := old.cost_transcription_cents;
+      new.cost_ai_cents := old.cost_ai_cents;
+      new.created_by := old.created_by;         -- dono imutável
+      new.organization_id := old.organization_id; -- empresa imutável
+      -- cliente não força estados internos de pipeline nem 'pronto'
+      if new.status is distinct from old.status
+         and new.status not in ('gravando', 'enviando', 'erro') then
+        new.status := old.status;
+      end if;
+    end if;
   end if;
   return new;
 end;
 $$;
 
 create trigger recordings_guard_trg
-  before update on recordings
+  before insert or update on recordings
   for each row execute function public.recordings_guard_server_fields();
 
 -- ─────────────────────────── Habilitar RLS ───────────────────────────
@@ -200,8 +217,25 @@ create policy recordings_insert on recordings
     )
   );
 create policy recordings_update on recordings
-  for update using (created_by = auth.uid() or public.is_org_admin(organization_id))
-  with check (created_by = auth.uid() or public.is_org_admin(organization_id));
+  for update using (
+    public.is_org_member(organization_id)
+    and (created_by = auth.uid() or public.is_org_admin(organization_id))
+  )
+  with check (
+    public.is_org_member(organization_id)
+    and (created_by = auth.uid() or public.is_org_admin(organization_id))
+    and (
+      project_id is null
+      or exists (select 1 from projects p where p.id = project_id and p.organization_id = recordings.organization_id)
+    )
+    and (
+      template_id is null
+      or exists (
+        select 1 from templates t
+        where t.id = template_id and (t.organization_id is null or t.organization_id = recordings.organization_id)
+      )
+    )
+  );
 create policy recordings_delete on recordings
   for delete using (created_by = auth.uid() or public.is_org_admin(organization_id));
 
