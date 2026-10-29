@@ -17,7 +17,14 @@ export function formatBRL(value: number): string {
 
 /** Data ISO ou Date → "dd/mm/aaaa". */
 export function formatDateBR(input: string | Date): string {
-  const d = typeof input === 'string' ? new Date(input) : input;
+  let d: Date;
+  if (typeof input === 'string') {
+    // Data só-data (YYYY-MM-DD) é interpretada como local, sem deslocar o fuso.
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(input);
+    d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(input);
+  } else {
+    d = input;
+  }
   return new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
     month: '2-digit',

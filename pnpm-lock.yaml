@@ -190,6 +190,19 @@ importers:
         specifier: 2.1.8
         version: 2.1.8(@types/node@22.10.2)(lightningcss@1.33.0)(supports-color@8.1.1)(terser@5.51.2)
 
+  packages/pdf:
+    dependencies:
+      '@talkin/core':
+        specifier: workspace:*
+        version: link:../core
+      playwright-core:
+        specifier: 1.49.1
+        version: 1.49.1
+    devDependencies:
+      vitest:
+        specifier: 2.1.8
+        version: 2.1.8(@types/node@22.10.2)(lightningcss@1.33.0)(supports-color@8.1.1)(terser@5.51.2)
+
   packages/pipeline:
     dependencies:
       '@talkin/core':
@@ -4463,6 +4476,11 @@ packages:
   pkg-dir@3.0.0:
     resolution: {integrity: sha512-/E57AYkoeQ25qkxMj5PBOVgF8Kiu/h7cYS30Z5+R7WaiCCBfLq58ZI/dSeaEKb9WVJV5n/03QwrN3IeWIFllvw==}
     engines: {node: '>=6'}
+
+  playwright-core@1.49.1:
+    resolution: {integrity: sha512-BzmpVcs4kE2CH15rWfzpjzVGhWERJfmnXmniSyKeRZUs9Ws65m+RGIi7mjJK/euCegfn3i7jvqWeWyHe9y3Vgg==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   plist@3.1.1:
     resolution: {integrity: sha512-ZIfcLJC+7E7FBFnDxm9MPmt7D+DidyQ26lewieO75AdhA2ayMtsJSES0iWzqJQbcVRSrTufQoy0DR94xHue0oA==}
@@ -10287,6 +10305,8 @@ snapshots:
   pkg-dir@3.0.0:
     dependencies:
       find-up: 3.0.0
+
+  playwright-core@1.49.1: {}
 
   plist@3.1.1:
     dependencies:
