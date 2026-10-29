@@ -28,14 +28,18 @@ export async function POST(request: Request) {
   const { data: canModify } = await user.rpc('can_modify_recording', { rec: recordingId });
   if (!canModify) return NextResponse.json({ error: 'Não encontrado.' }, { status: 404 });
 
-  // Status anterior (só para reverter se a troca de modelo falhar depois do claim).
-  const { data: prev } = await user
-    .from('recordings')
-    .select('status')
-    .eq('id', recordingId)
-    .maybeSingle();
+  // Valida o modelo ANTES do claim: precisa ser visível ao usuário (global ou da
+  // mesma empresa, pela RLS de templates). Assim a troca pós-claim não falha por acesso.
+  if (templateId) {
+    const { data: tpl } = await user
+      .from('templates')
+      .select('id')
+      .eq('id', templateId)
+      .maybeSingle();
+    if (!tpl) return NextResponse.json({ error: 'Modelo inválido.' }, { status: 400 });
+  }
 
-  // Claim atômico PRIMEIRO: só regenera a partir de um estado final (pronto/erro).
+  // Claim atômico: só regenera a partir de um estado final (pronto/erro).
   const admin = createAdminClient();
   const { data: claimed } = await admin
     .from('recordings')
@@ -48,18 +52,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'A ata ainda está sendo processada.' }, { status: 409 });
   }
 
-  // Só então troca o modelo (evita modelo novo com ata antiga se o claim falhar).
+  // Troca o modelo depois do claim (evita modelo novo com ata antiga).
   if (templateId !== undefined) {
     const { error } = await user
       .from('recordings')
       .update({ template_id: templateId })
       .eq('id', recordingId);
     if (error) {
-      // Não deixa a gravação presa em "resumindo": devolve ao estado anterior.
+      // Rollback condicional a um estado final (não clobbera mudança concorrente).
       await admin
         .from('recordings')
-        .update({ status: prev?.status ?? 'erro' })
-        .eq('id', recordingId);
+        .update({ status: 'erro' })
+        .eq('id', recordingId)
+        .eq('status', 'resumindo');
       return NextResponse.json({ error: 'Não foi possível trocar o modelo.' }, { status: 400 });
     }
   }
