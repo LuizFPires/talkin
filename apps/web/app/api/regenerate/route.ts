@@ -28,6 +28,13 @@ export async function POST(request: Request) {
   const { data: canModify } = await user.rpc('can_modify_recording', { rec: recordingId });
   if (!canModify) return NextResponse.json({ error: 'Não encontrado.' }, { status: 404 });
 
+  // Status anterior (só para reverter se a troca de modelo falhar depois do claim).
+  const { data: prev } = await user
+    .from('recordings')
+    .select('status')
+    .eq('id', recordingId)
+    .maybeSingle();
+
   // Claim atômico PRIMEIRO: só regenera a partir de um estado final (pronto/erro).
   const admin = createAdminClient();
   const { data: claimed } = await admin
@@ -47,8 +54,14 @@ export async function POST(request: Request) {
       .from('recordings')
       .update({ template_id: templateId })
       .eq('id', recordingId);
-    if (error)
+    if (error) {
+      // Não deixa a gravação presa em "resumindo": devolve ao estado anterior.
+      await admin
+        .from('recordings')
+        .update({ status: prev?.status ?? 'erro' })
+        .eq('id', recordingId);
       return NextResponse.json({ error: 'Não foi possível trocar o modelo.' }, { status: 400 });
+    }
   }
 
   try {
