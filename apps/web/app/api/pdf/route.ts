@@ -1,0 +1,89 @@
+import { NextResponse } from 'next/server';
+import { AtaContent } from '@talkin/core';
+import { renderAtaPdf, type AtaDoc } from '@talkin/pdf';
+import { createClient } from '@/lib/supabase/server';
+
+export const maxDuration = 120;
+
+/** Baixa a ata em PDF (Executiva). GET ?recordingId=... — respeita RLS do usuário. */
+export async function GET(request: Request) {
+  const recordingId = new URL(request.url).searchParams.get('recordingId') ?? '';
+  if (!/^[0-9a-f-]{36}$/i.test(recordingId)) {
+    return NextResponse.json({ error: 'Requisição inválida.' }, { status: 400 });
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+
+  // Carrega via RLS do usuário (só vê o que pode).
+  const { data: rec } = await supabase
+    .from('recordings')
+    .select('id, title, source, duration_s, created_at, organization_id, status')
+    .eq('id', recordingId)
+    .maybeSingle();
+  if (!rec) return NextResponse.json({ error: 'Não encontrado.' }, { status: 404 });
+
+  const { data: summary } = await supabase
+    .from('summaries')
+    .select('content, status')
+    .eq('recording_id', recordingId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const parsed = summary?.content ? AtaContent.safeParse(summary.content) : null;
+  if (!parsed?.success) {
+    return NextResponse.json({ error: 'Ata ainda não disponível.' }, { status: 409 });
+  }
+
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('nome_fantasia, cnpj, cidade, uf, site, accent_color, pdf_template, logo_url')
+    .eq('id', rec.organization_id)
+    .maybeSingle();
+
+  // Logo embutida como data: URI (nunca URL externa — anti-SSRF no render).
+  let logoDataUri: string | null = null;
+  if (org?.logo_url) {
+    const { data: blob } = await supabase.storage.from('logos').download(org.logo_url);
+    if (blob) {
+      const b64 = Buffer.from(await blob.arrayBuffer()).toString('base64');
+      logoDataUri = `data:${blob.type || 'image/png'};base64,${b64}`;
+    }
+  }
+
+  const doc: AtaDoc = {
+    org: {
+      nome_fantasia: org?.nome_fantasia ?? 'Empresa',
+      cnpj: org?.cnpj ?? null,
+      cidade: org?.cidade ?? null,
+      uf: org?.uf ?? null,
+      site: org?.site ?? null,
+      accent_color: org?.accent_color ?? null,
+      logo_url: logoDataUri,
+    },
+    recording: {
+      title: rec.title ?? '',
+      date: rec.created_at,
+      durationS: rec.duration_s,
+      source: rec.source,
+      revisada: summary?.status === 'revisada',
+    },
+    ata: parsed.data,
+    template: org?.pdf_template ?? 'executiva',
+  };
+
+  try {
+    const pdf = await renderAtaPdf(doc);
+    return new NextResponse(Buffer.from(pdf), {
+      headers: {
+        'content-type': 'application/pdf',
+        'content-disposition': `attachment; filename="ata-${recordingId}.pdf"`,
+      },
+    });
+  } catch {
+    return NextResponse.json({ error: 'Falha ao gerar o PDF.' }, { status: 500 });
+  }
+}

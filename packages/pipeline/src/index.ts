@@ -1,4 +1,5 @@
 export { processRecording, PipelineError } from './pipeline';
+export { regenerateSummary } from './regenerate';
 export type { PipelinePorts, Providers } from './ports';
 export { selectProviders } from './select';
 export { concatAndNormalize } from './audio';

@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   type AtaContent,
   formatBRL,
@@ -12,24 +13,76 @@ import { Card, Pilula, Rotulo, ToggleSegmentado } from '@talkin/ui';
 import { StatusBadge } from './status-badge';
 
 type Seg = { startMs: number; endMs: number; text: string; falante: string };
+type Template = { id: string; key: string; name: string };
+
+/** Texto formatado para colar no WhatsApp (SPEC 18). */
+function textoWhatsapp(titulo: string, ata: AtaContent): string {
+  const linhas = [`*${titulo}*`, '', ata.resumo].filter(Boolean);
+  if (ata.extracao.decisoes.length) {
+    linhas.push('', '*Decisões*');
+    for (const d of ata.extracao.decisoes) linhas.push(`• ${d.texto}`);
+  }
+  if (ata.extracao.pendencias.length) {
+    linhas.push('', '*Pendências*');
+    for (const p of ata.extracao.pendencias) {
+      linhas.push(
+        `• ${p.texto}${p.responsavel ? ` — ${p.responsavel}` : ''}${p.prazo ? ` (${formatDateBR(p.prazo)})` : ''}`,
+      );
+    }
+  }
+  return linhas.join('\n');
+}
 
 export function GravacaoView({
+  recordingId,
   titulo,
   status,
   criadoEm,
   ata,
   segments,
   audioUrl,
+  templates,
+  templateId,
 }: {
+  recordingId: string;
   titulo: string;
   status: RecordingStatus;
   criadoEm: string;
   ata: AtaContent | null;
   segments: Seg[];
   audioUrl: string | null;
+  templates: Template[];
+  templateId: string | null;
 }) {
+  const router = useRouter();
   const [aba, setAba] = useState('ata');
+  const [modelo, setModelo] = useState(templateId ?? '');
+  const [regenerando, setRegenerando] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  async function regenerar() {
+    setRegenerando(true);
+    setAviso(null);
+    const res = await fetch('/api/regenerate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ recordingId, templateId: modelo || null }),
+    });
+    setRegenerando(false);
+    if (!res.ok) {
+      const b = (await res.json().catch(() => ({}))) as { error?: string };
+      setAviso(b.error ?? 'Falha ao regenerar.');
+      return;
+    }
+    router.refresh();
+  }
+
+  async function copiarWhatsapp() {
+    if (!ata) return;
+    await navigator.clipboard.writeText(textoWhatsapp(titulo, ata));
+    setAviso('Texto copiado para o WhatsApp.');
+  }
 
   function tocarEm(ms: number) {
     const a = audioRef.current;
@@ -71,6 +124,55 @@ export function GravacaoView({
       {audioUrl && (
         <audio ref={audioRef} src={audioUrl} controls style={{ width: '100%', marginBottom: 16 }} />
       )}
+
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 16,
+        }}
+      >
+        <select
+          value={modelo}
+          onChange={(e) => setModelo(e.target.value)}
+          aria-label="Modelo de ata"
+          style={{
+            padding: '8px 12px',
+            borderRadius: 'var(--radius-pill)',
+            border: '1px solid var(--border)',
+            background: 'var(--card)',
+            color: 'var(--text)',
+            fontSize: 13,
+          }}
+        >
+          <option value="">Modelo…</option>
+          {templates.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => void regenerar()}
+          disabled={regenerando}
+          style={acaoBtn}
+        >
+          {regenerando ? 'Regenerando…' : 'Regenerar ata'}
+        </button>
+        <button type="button" onClick={() => void copiarWhatsapp()} disabled={!ata} style={acaoBtn}>
+          Copiar p/ WhatsApp
+        </button>
+        <a
+          href={`/api/pdf?recordingId=${recordingId}`}
+          style={{ ...acaoBtn, textDecoration: 'none' }}
+        >
+          Baixar PDF
+        </a>
+        {aviso && <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{aviso}</span>}
+      </div>
 
       <div style={{ marginBottom: 16 }}>
         <ToggleSegmentado
@@ -216,6 +318,16 @@ function AbaTranscricao({
     </div>
   );
 }
+
+const acaoBtn: React.CSSProperties = {
+  padding: '8px 14px',
+  borderRadius: 'var(--radius-pill)',
+  border: '1px solid var(--border)',
+  background: 'var(--card)',
+  color: 'var(--text)',
+  fontSize: 13,
+  cursor: 'pointer',
+};
 
 const lista: React.CSSProperties = {
   listStyle: 'none',

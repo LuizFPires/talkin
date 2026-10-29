@@ -1,4 +1,4 @@
-import type { AtaContent, AtaInput, TranscriptionResult } from '@talkin/core';
+import type { AtaContent, AtaInput, TranscriptionResult, TranscriptSegment } from '@talkin/core';
 
 /**
  * Portas que o orquestrador usa para falar com o mundo (DB, storage, ffmpeg).
@@ -26,6 +26,9 @@ export interface PipelinePorts {
   ): Promise<{ templateId: string | null; key: string; sections: AtaInput['templateSections'] }>;
 
   getContext(recordingId: string): Promise<AtaInput['context']>;
+
+  /** Trechos já transcritos (para regenerar a ata sem re-transcrever). */
+  getSegments(recordingId: string): Promise<TranscriptSegment[]>;
 
   saveSummary(recordingId: string, templateId: string | null, content: AtaContent): Promise<string>;
 
