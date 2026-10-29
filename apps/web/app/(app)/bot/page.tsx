@@ -14,8 +14,8 @@ type Bot = {
   cost_cents: number;
 };
 
-// Espelha BOT_CENTS_PER_HOUR do servidor para a prévia de custo.
-const CUSTO_HORA_CENTS = 150;
+// Mesmo valor do servidor (env pública), para a prévia bater com o cobrado.
+const CUSTO_HORA_CENTS = Number(process.env.NEXT_PUBLIC_BOT_CENTS_PER_HOUR ?? '150');
 
 export default function BotPage() {
   const [url, setUrl] = useState('');

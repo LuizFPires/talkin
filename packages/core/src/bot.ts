@@ -28,11 +28,19 @@ export function estimarCustoBotCents(minutos: number, centsPorHora: number): num
   return Math.round((minutos / 60) * centsPorHora);
 }
 
-/** Detecta a plataforma pela URL da reunião. */
+/** Detecta a plataforma pela URL (https + hostname exato/sufixo, sem bypass por substring). */
 export function plataformaPorUrl(url: string): BotPlatform | null {
-  const u = url.toLowerCase();
-  if (u.includes('meet.google.com')) return 'meet';
-  if (u.includes('teams.microsoft.com') || u.includes('teams.live.com')) return 'teams';
-  if (u.includes('zoom.us')) return 'zoom';
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== 'https:') return null;
+  const h = u.hostname.toLowerCase();
+  if (h === 'meet.google.com') return 'meet';
+  if (h === 'teams.microsoft.com' || h === 'teams.live.com' || h.endsWith('.teams.microsoft.com'))
+    return 'teams';
+  if (h === 'zoom.us' || h.endsWith('.zoom.us')) return 'zoom';
   return null;
 }

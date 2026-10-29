@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
 import { estimarCustoBotCents, plataformaPorUrl } from '@talkin/core';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, hasServiceRole } from '@/lib/supabase/admin';
 import { BOT_CENTS_PER_HOUR, selectBotProvider } from '@/lib/bot';
 
 export const maxDuration = 30;
 
 /** Agenda o bot para entrar numa reunião (SPEC 22). POST { meetingUrl }. */
 export async function POST(request: Request) {
+  if (!hasServiceRole()) return NextResponse.json({ error: 'Indisponível.' }, { status: 503 });
+
   const { meetingUrl } = (await request.json().catch(() => ({}))) as { meetingUrl?: string };
   const plataforma = meetingUrl ? plataformaPorUrl(meetingUrl) : null;
   if (!meetingUrl || !plataforma) {
@@ -33,7 +36,9 @@ export async function POST(request: Request) {
 
   const custoHoraCents = estimarCustoBotCents(60, BOT_CENTS_PER_HOUR);
 
-  const { data: bot, error } = await supabase
+  // Campos de servidor (custo/status/provider_bot_id) gravados via service role.
+  const admin = createAdminClient();
+  const { data: bot, error } = await admin
     .from('meeting_bots')
     .insert({
       organization_id: org,
@@ -50,13 +55,14 @@ export async function POST(request: Request) {
 
   try {
     const r = await selectBotProvider().scheduleBot({ meetingUrl, platform: plataforma });
-    await supabase
+    await admin
       .from('meeting_bots')
       .update({ provider_bot_id: r.providerBotId, status: r.status })
       .eq('id', bot.id);
     return NextResponse.json({ ok: true, botId: bot.id, custoHoraCents });
   } catch {
-    await supabase.from('meeting_bots').update({ status: 'erro' }).eq('id', bot.id);
+    // Bot não rodou: não deixa custo residual inflando os relatórios.
+    await admin.from('meeting_bots').update({ status: 'erro', cost_cents: 0 }).eq('id', bot.id);
     return NextResponse.json({ error: 'Falha ao acionar o bot.' }, { status: 502 });
   }
 }

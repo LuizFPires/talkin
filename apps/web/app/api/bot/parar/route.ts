@@ -7,7 +7,7 @@ export const maxDuration = 30;
 /** Desliga o bot numa reunião (liga/desliga por reunião, SPEC 22). POST { botId }. */
 export async function POST(request: Request) {
   const { botId } = (await request.json().catch(() => ({}))) as { botId?: string };
-  if (!botId || !/^[0-9a-f-]{36}$/i.test(botId)) {
+  if (!botId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(botId)) {
     return NextResponse.json({ error: 'Requisição inválida.' }, { status: 400 });
   }
 

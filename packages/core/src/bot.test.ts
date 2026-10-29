@@ -13,5 +13,8 @@ describe('bot de reunião', () => {
     expect(plataformaPorUrl('https://teams.microsoft.com/l/meetup-join/x')).toBe('teams');
     expect(plataformaPorUrl('https://us02web.zoom.us/j/123')).toBe('zoom');
     expect(plataformaPorUrl('https://exemplo.com/x')).toBeNull();
+    // Não cai em spoof por substring nem em http.
+    expect(plataformaPorUrl('https://meet.google.com.evil.com/x')).toBeNull();
+    expect(plataformaPorUrl('http://meet.google.com/x')).toBeNull();
   });
 });

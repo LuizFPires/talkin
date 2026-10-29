@@ -1,7 +1,9 @@
 import type { BotProvider, ScheduleBotInput, ScheduleBotResult } from '@talkin/core';
 
-/** Custo por hora do bot (centavos). Ajustar conforme o contrato do Recall. */
-export const BOT_CENTS_PER_HOUR = Number(process.env.BOT_CENTS_PER_HOUR ?? '150');
+/** Custo por hora do bot (centavos). Público para a UI mostrar o mesmo valor. */
+export const BOT_CENTS_PER_HOUR = Number(
+  process.env.NEXT_PUBLIC_BOT_CENTS_PER_HOUR ?? process.env.BOT_CENTS_PER_HOUR ?? '150',
+);
 
 /** Recall.ai: agenda um bot que entra na reunião e grava. */
 class RecallBotProvider implements BotProvider {
@@ -23,10 +25,15 @@ class RecallBotProvider implements BotProvider {
   }
 
   async stopBot(providerBotId: string): Promise<void> {
-    await fetch(`https://api.recall.ai/api/v1/bot/${providerBotId}/leave_call/`, {
-      method: 'POST',
-      headers: { Authorization: `Token ${this.apiKey}` },
-    });
+    // Valida o id antes de montar a URL (anti path injection).
+    if (!/^[A-Za-z0-9_-]{1,100}$/.test(providerBotId)) throw new Error('bot id inválido');
+    await fetch(
+      `https://api.recall.ai/api/v1/bot/${encodeURIComponent(providerBotId)}/leave_call/`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Token ${this.apiKey}` },
+      },
+    );
   }
 }
 
