@@ -25,13 +25,7 @@ export const RecordingStatus = z.enum([
 export type RecordingStatus = z.infer<typeof RecordingStatus>;
 
 /** Rótulo coarse mostrado na biblioteca (SPEC 15). */
-export const LibraryStatus = z.enum([
-  'gravando',
-  'enviando',
-  'processando',
-  'pronto',
-  'erro',
-]);
+export const LibraryStatus = z.enum(['gravando', 'enviando', 'processando', 'pronto', 'erro']);
 export type LibraryStatus = z.infer<typeof LibraryStatus>;
 
 const PROCESSING: ReadonlySet<RecordingStatus> = new Set([

@@ -1,3 +1,3 @@
-export * from './enums.js';
-export * from './schemas.js';
-export * from './format.js';
+export * from './enums';
+export * from './schemas';
+export * from './format';

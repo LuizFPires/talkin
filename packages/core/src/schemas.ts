@@ -10,7 +10,7 @@ import {
   Role,
   SummaryStatus,
   Visibility,
-} from './enums.js';
+} from './enums';
 
 const uuid = z.string().uuid();
 const ts = z.string().datetime({ offset: true });
@@ -30,7 +30,10 @@ export const Organization = z.object({
   site: z.string().nullable(),
   logo_url: z.string().nullable(),
   logo_light_url: z.string().nullable(),
-  accent_color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable(),
+  accent_color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .nullable(),
   pdf_template: PdfTemplate.default('executiva'),
   audio_retention: AudioRetention.default('1y'),
   created_at: ts,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { formatBRL, formatBRLFromCents, formatDateBR, formatMinute } from './format.js';
-import { toLibraryStatus } from './enums.js';
+import { formatBRL, formatBRLFromCents, formatDateBR, formatMinute } from './format';
+import { toLibraryStatus } from './enums';
 
 describe('formatação brasileira', () => {
   it('formata centavos em R$', () => {
