@@ -25,7 +25,9 @@ function makePorts() {
     async saveTranscript(_id, result: TranscriptionResult) {
       return {
         transcriptId: 't1',
-        speakerIdByLabel: Object.fromEntries(result.segments.map((s, i) => [s.speakerLabel, `sp${i}`])),
+        speakerIdByLabel: Object.fromEntries(
+          result.segments.map((s, i) => [s.speakerLabel, `sp${i}`]),
+        ),
       };
     },
     async getTemplate() {

@@ -29,11 +29,7 @@ export interface PipelinePorts {
 
   saveSummary(recordingId: string, templateId: string | null, content: AtaContent): Promise<string>;
 
-  saveActionItems(
-    recordingId: string,
-    summaryId: string,
-    content: AtaContent,
-  ): Promise<void>;
+  saveActionItems(recordingId: string, summaryId: string, content: AtaContent): Promise<void>;
 
   addCost(
     recordingId: string,
