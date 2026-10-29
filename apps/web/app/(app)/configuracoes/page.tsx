@@ -206,6 +206,9 @@ export default function ConfiguracoesPage() {
           <Link href="/configuracoes/modelos" style={{ ...botao, textDecoration: 'none' }}>
             Modelos de ata
           </Link>
+          <Link href="/configuracoes/integracoes" style={{ ...botao, textDecoration: 'none' }}>
+            Integrações
+          </Link>
         </div>
       </header>
       {msg && <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{msg}</p>}

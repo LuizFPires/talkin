@@ -138,3 +138,9 @@ Cada etapa atualiza o status em `recordings` e pode ser reprocessada isoladament
 - **Cadastro de pessoas (SPEC 26):** `/configuracoes/pessoas` CRUD (nome, empresa, papel, contato); escrita por membros da empresa.
 - **Sugestão de nome:** ao renomear, a UI lista as pessoas cadastradas para escolher; sugestão por voz é refinamento futuro.
 - **Pendências por pessoa (SPEC 14):** atribuir uma pendência a uma pessoa cadastrada (`assignee_person_id`); exibe o nome.
+
+### M7 — Integrações *(auto — recomendado)*
+- **Webhook para o ioo / sistemas de obra (SPEC 21):** tabela `integrations` (por empresa: `ioo_webhook_url`, `webhook_secret`, regras de calendário, flag de import). Ao marcar a ata **Revisada**, envia decisões + pendências (com responsável, prazo, projeto, minuto) via POST assinado (HMAC) para a URL configurada. **Só ata revisada é enviada** (não espalha erro da IA). Webhook genérico para outros sistemas pelo mesmo mecanismo.
+- **Motor de regras (SPEC 20, `packages/core`):** `sugerirPorEvento(titulo, participantes, regras, ...)` → modelo/projeto sugeridos (ex.: título com "obra" → Reunião de obra; fornecedor X → projeto Y). Puro e testado; reutilizável pela detecção do desktop.
+- **Calendário Google/Outlook e import Meet/Teams (Drive/OneDrive):** dependem de OAuth (credenciais do usuário). Ficam como **scaffold** com "Conectar" que exige credenciais; a sincronização real roda ao conectar (modo só-código).
+- **CI:** motor de regras e payload do webhook testados; o envio real sai com a URL configurada pelo usuário.

@@ -23,12 +23,14 @@ export function GestaoGravacao({ recordingId }: { recordingId: string }) {
   const [pessoas, setPessoas] = useState<Pessoa[]>([]);
   const [falantes, setFalantes] = useState<Falante[]>([]);
   const [pendencias, setPendencias] = useState<Pendencia[]>([]);
+  const [summary, setSummary] = useState<{ id: string; status: string } | null>(null);
+  const [temWebhook, setTemWebhook] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const router = useRouter();
 
   async function carregar() {
     const supabase = createClient();
-    const [pp, sp, ai] = await Promise.all([
+    const [pp, sp, ai, sm] = await Promise.all([
       supabase.from('people').select('id, name').is('deleted_at', null).order('name'),
       supabase
         .from('speakers')
@@ -39,10 +41,48 @@ export function GestaoGravacao({ recordingId }: { recordingId: string }) {
         .from('action_items')
         .select('id, text, assignee_person_id')
         .eq('recording_id', recordingId),
+      supabase
+        .from('summaries')
+        .select('id, status')
+        .eq('recording_id', recordingId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
     setPessoas((pp.data as Pessoa[] | null) ?? []);
     setFalantes((sp.data as Falante[] | null) ?? []);
     setPendencias((ai.data as Pendencia[] | null) ?? []);
+    setSummary((sm.data as { id: string; status: string } | null) ?? null);
+    const { data: integ } = await supabase
+      .from('integrations')
+      .select('ioo_webhook_url')
+      .maybeSingle();
+    setTemWebhook(Boolean((integ as { ioo_webhook_url: string | null } | null)?.ioo_webhook_url));
+  }
+
+  async function marcarRevisada() {
+    if (!summary) return;
+    const { data, error } = await createClient()
+      .from('summaries')
+      .update({ status: 'revisada' })
+      .eq('id', summary.id)
+      .select('id');
+    if (error || !data?.length) {
+      setMsg('Sem permissão para revisar.');
+      return;
+    }
+    setSummary({ ...summary, status: 'revisada' });
+    setMsg('Ata marcada como revisada.');
+  }
+
+  async function enviarIoo() {
+    const res = await fetch('/api/integracoes/enviar', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ recordingId }),
+    });
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    setMsg(res.ok ? 'Enviado ao ioo.' : (body.error ?? 'Falha ao enviar.'));
   }
 
   useEffect(() => {
@@ -83,11 +123,53 @@ export function GestaoGravacao({ recordingId }: { recordingId: string }) {
     );
   }
 
-  if (falantes.length === 0 && pendencias.length === 0) return null;
+  if (falantes.length === 0 && pendencias.length === 0 && !summary) return null;
 
   return (
     <div style={{ display: 'grid', gap: 12, marginTop: 16 }}>
       {msg && <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{msg}</span>}
+
+      {summary && (
+        <Card style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <Rotulo>Ata</Rotulo>
+          <Pilula>{summary.status === 'revisada' ? 'Revisada' : 'Rascunho'}</Pilula>
+          {summary.status !== 'revisada' && (
+            <button
+              type="button"
+              onClick={() => void marcarRevisada()}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 'var(--radius-pill)',
+                border: '1px solid var(--accent)',
+                background: 'var(--accent)',
+                color: 'var(--on-accent)',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Marcar como revisada
+            </button>
+          )}
+          {summary.status === 'revisada' && temWebhook && (
+            <button
+              type="button"
+              onClick={() => void enviarIoo()}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 'var(--radius-pill)',
+                border: '1px solid var(--border)',
+                background: 'var(--card)',
+                color: 'var(--text)',
+                fontSize: 12,
+                cursor: 'pointer',
+              }}
+            >
+              Enviar ao ioo
+            </button>
+          )}
+        </Card>
+      )}
 
       {falantes.length > 0 && (
         <Card>
