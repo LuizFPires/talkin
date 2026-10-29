@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Talkin",
+    "slug": "talkin",
+    "scheme": "talkin",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#030707",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ai.humanacademy.talkin",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "O Talkin usa o microfone para gravar reuniões presenciais.",
+        "UIBackgroundModes": ["audio"]
+      }
+    },
+    "android": {
+      "package": "ai.humanacademy.talkin",
+      "permissions": ["RECORD_AUDIO", "FOREGROUND_SERVICE", "POST_NOTIFICATIONS"]
+    },
+    "plugins": [
+      "expo-router",
+      ["expo-av", { "microphonePermission": "O Talkin usa o microfone para gravar reuniões." }],
+      "expo-notifications"
+    ],
+    "experiments": { "typedRoutes": true }
+  }
+}
