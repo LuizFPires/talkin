@@ -51,13 +51,14 @@ Plano de implementação por milestones. Cada milestone entrega algo usável e t
 > Código do M0 completo (auth, onboarding, biblioteca com status, RPC `create_organization`, RLS, buckets). O aceite roda ao conectar o Supabase (modo só-código: sem credenciais nesta fase).
 
 ## M1 — Pipeline com importação (prova de valor)
-- [ ] Upload de áudio/vídeo na web (mp3, m4a, wav, mp4, webm, opus)
-- [ ] Extração de áudio de vídeo (ffmpeg no worker)
-- [ ] Transcrição com diarização em pt-BR
-- [ ] Ata com modelo genérico + extração de decisões e pendências (JSON validado)
-- [ ] Tela da gravação: player + transcrição sincronizada + ata
+- [x] Upload de áudio/vídeo na web (mp3, m4a, wav, mp4, webm, opus) — página Importar
+- [x] Extração de áudio de vídeo (ffmpeg no worker) — `concatAndNormalize`
+- [x] Transcrição com diarização em pt-BR — adapter Deepgram (+ mock no modo só-código)
+- [x] Ata com modelo genérico + extração de decisões e pendências (JSON validado) — adapter Claude, validado por `AtaContent` (zod)
+- [x] Tela da gravação: player + transcrição sincronizada + ata — `/gravacao/[id]`
 
 **Aceite:** subir a gravação de uma reunião real de 1 h e ter ata e pendências corretas em menos de 5 min.
+> Pipeline fim a fim em código (worker em `/api/process`). O aceite com áudio real roda ao conectar Supabase + chaves Deepgram/Anthropic; sem chaves, o mock exercita o fluxo.
 
 ## M2 — Gravação presencial (celular)
 - [ ] App Expo com gravação em segundo plano (tela bloqueada) por até 4 h

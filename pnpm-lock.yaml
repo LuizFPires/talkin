@@ -45,6 +45,9 @@ importers:
       '@talkin/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@talkin/pipeline':
+        specifier: workspace:*
+        version: link:../../packages/pipeline
       '@talkin/ui':
         specifier: workspace:*
         version: link:../../packages/ui

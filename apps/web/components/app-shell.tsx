@@ -6,6 +6,7 @@ import { Sidebar, Rotulo, Pilula } from '@talkin/ui';
 
 const ITENS = [
   { key: '/biblioteca', label: 'Biblioteca' },
+  { key: '/importar', label: 'Importar' },
   { key: '/configuracoes', label: 'Configurações' },
 ];
 
