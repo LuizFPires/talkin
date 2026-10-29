@@ -1,39 +1,10 @@
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
-import {
-  RecordingSession,
-  UploadQueue,
-  type Chunk,
-  type ChunkUploader,
-  type Moment,
-} from '@talkin/capture';
-import { supabase } from './supabase';
+import { RecordingSession, UploadQueue, type Chunk, type Moment } from '@talkin/capture';
+import { chunkUploader } from './upload';
 import { queueStore } from './queue-store';
 
 const TICK_MS = 1000;
-
-/** Sobe um bloco para o Storage da empresa: {org}/{recordingId}/{index}.m4a */
-function uploader(organizationId: string, recordingId: string): ChunkUploader {
-  return {
-    async upload(item: Chunk) {
-      const path = `${organizationId}/${recordingId}/${String(item.index).padStart(4, '0')}.m4a`;
-      const res = await fetch(item.localPath);
-      const bytes = await res.arrayBuffer();
-      const { error } = await supabase.storage
-        .from('audio')
-        .upload(path, bytes, { contentType: 'audio/m4a', upsert: true });
-      if (error) throw new Error(error.message);
-      await supabase.from('recording_chunks').insert({
-        recording_id: recordingId,
-        index: item.index,
-        storage_path: path,
-        duration_s: Math.round(item.durationMs / 1000),
-        bytes: item.bytes,
-        uploaded_at: new Date().toISOString(),
-      });
-    },
-  };
-}
 
 type Listeners = {
   onElapsed?: (ms: number) => void;
@@ -44,6 +15,11 @@ type Listeners = {
 /**
  * Gravador presencial: grava em blocos de ~45 s (para/retoma o expo-av),
  * enfileira cada bloco para upload incremental e marca momentos.
+ *
+ * LIMITAÇÃO CONHECIDA (teste manual por SO): a troca de bloco para e reinicia
+ * o encoder do expo-av, o que deixa um pequeno intervalo sem captura na emenda.
+ * Gapless real exige captura nativa contínua (gravador duplo sobreposto),
+ * planejada junto do módulo de captura do desktop (M3).
  */
 export class MeetingRecorder {
   private session: RecordingSession;
@@ -51,6 +27,8 @@ export class MeetingRecorder {
   private recording: Audio.Recording | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private index = 0;
+  private busy = false;
+  private stopped = false;
 
   constructor(
     private readonly organizationId: string,
@@ -58,7 +36,10 @@ export class MeetingRecorder {
     private readonly listeners: Listeners = {},
   ) {
     this.session = new RecordingSession(Date.now());
-    this.queue = new UploadQueue(uploader(organizationId, recordingId), queueStore(recordingId));
+    this.queue = new UploadQueue(
+      chunkUploader(organizationId, recordingId),
+      queueStore(recordingId),
+    );
   }
 
   async start(): Promise<void> {
@@ -78,14 +59,22 @@ export class MeetingRecorder {
   }
 
   private async onTick(): Promise<void> {
-    const now = Date.now();
-    this.listeners.onElapsed?.(this.session.elapsedMs(now));
-    const { rotate, warn, reachedLimit } = this.session.tick(now);
-    if (warn) this.listeners.onWarn?.();
-    if (rotate) await this.rotate();
-    if (reachedLimit) {
-      this.listeners.onLimit?.();
-      await this.stop();
+    if (this.busy || this.stopped) return; // evita rotação/stop concorrentes
+    this.busy = true;
+    try {
+      const now = Date.now();
+      this.listeners.onElapsed?.(this.session.elapsedMs(now));
+      const { rotate, warn, reachedLimit } = this.session.tick(now);
+      if (warn) this.listeners.onWarn?.();
+      if (rotate) await this.rotate();
+      if (reachedLimit) {
+        this.listeners.onLimit?.();
+        this.busy = false;
+        await this.stop();
+        return;
+      }
+    } finally {
+      this.busy = false;
     }
   }
 
@@ -96,35 +85,37 @@ export class MeetingRecorder {
     this.recording = recording;
   }
 
-  /** Fecha o bloco atual, enfileira e abre o próximo sem perder áudio. */
+  /** Fecha o bloco atual, enfileira e abre o próximo (ver LIMITAÇÃO acima). */
   private async rotate(): Promise<void> {
     const chunk = await this.finishChunk();
     if (chunk) {
       await this.queue.add(chunk);
       void this.queue.flush();
     }
-    await this.startChunk();
+    if (!this.stopped) await this.startChunk();
   }
 
   private async finishChunk(): Promise<Chunk | null> {
     if (!this.recording) return null;
-    await this.recording.stopAndUnloadAsync();
-    const status = await this.recording.getStatusAsync();
-    const uri = this.recording.getURI();
+    const rec = this.recording;
     this.recording = null;
+    await rec.stopAndUnloadAsync();
+    const status = await rec.getStatusAsync();
+    const uri = rec.getURI();
     if (!uri) return null;
     const info = await FileSystem.getInfoAsync(uri);
-    const chunk: Chunk = {
+    return {
       index: this.index++,
       localPath: uri,
       durationMs: status.durationMillis ?? 0,
       bytes: info.exists ? (info.size ?? 0) : 0,
     };
-    return chunk;
   }
 
-  /** Encerra: fecha o último bloco, garante o envio e devolve os pendentes. */
+  /** Encerra (idempotente): fecha o último bloco, tenta enviar e devolve pendentes. */
   async stop(): Promise<{ pending: number }> {
+    if (this.stopped) return { pending: this.queue.pendingCount() };
+    this.stopped = true;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     const last = await this.finishChunk();

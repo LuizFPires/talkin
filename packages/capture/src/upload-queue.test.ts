@@ -71,20 +71,24 @@ describe('UploadQueue', () => {
     expect(q.allUploaded()).toBe(true);
   });
 
-  it('para de tentar após maxAttempts, mas mantém o bloco na fila', async () => {
+  it('nunca desiste: continua retentando e sobe quando a rede volta', async () => {
+    let online = false;
     const uploader: ChunkUploader = {
       async upload() {
-        throw new Error('servidor fora');
+        if (!online) throw new Error('servidor fora');
       },
     };
-    const q = new UploadQueue(uploader, store, 3);
+    const q = new UploadQueue(uploader, store);
     await q.add(chunk(0));
-    await q.flush();
-    await q.flush();
-    await q.flush();
-    const extra = await q.flush(); // já esgotou; não tenta mais
-    expect(extra.uploaded).toBe(0);
-    expect(q.pendingCount()).toBe(1); // continua na fila (não descartado)
-    expect(q.snapshot()[0]!.state).toBe('failed');
+
+    // Muitas falhas seguidas — o bloco nunca é descartado nem fica terminal.
+    for (let i = 0; i < 10; i++) await q.flush();
+    expect(q.pendingCount()).toBe(1);
+    expect(q.snapshot()[0]!.attempts).toBe(10);
+
+    online = true;
+    const r = await q.flush();
+    expect(r.uploaded).toBe(1);
+    expect(q.allUploaded()).toBe(true);
   });
 });

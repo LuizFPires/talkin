@@ -2,7 +2,8 @@ import type { Chunk, ChunkUploader, QueueItem, QueueStore } from './types';
 
 /**
  * Fila de upload incremental com retomada e persistência (SPEC 1 / CLAUDE.md).
- * Regra de ouro: um bloco só sai da fila quando o servidor confirma. Nunca descarta.
+ * Regra de ouro: um bloco só sai da fila quando o servidor confirma, e NUNCA
+ * deixa de ser retentável — não há estado terminal que impeça o reenvio.
  */
 export class UploadQueue {
   private items: QueueItem[] = [];
@@ -11,15 +12,13 @@ export class UploadQueue {
   constructor(
     private readonly uploader: ChunkUploader,
     private readonly store: QueueStore,
-    private readonly maxAttempts = 5,
   ) {}
 
-  /** Carrega a fila persistida (retomada após queda/fechamento). */
+  /** Carrega a fila persistida; tudo que não foi confirmado volta a pendente. */
   async init(): Promise<void> {
     this.items = await this.store.load();
-    // Blocos que estavam "uploading" quando o app caiu voltam a pendentes.
     for (const it of this.items) {
-      if (it.state === 'uploading') it.state = 'pending';
+      if (it.state !== 'uploaded') it.state = 'pending';
     }
     this.loaded = true;
   }
@@ -27,28 +26,30 @@ export class UploadQueue {
   /** Enfileira um bloco novo e persiste imediatamente (não perder áudio). */
   async add(chunk: Chunk): Promise<void> {
     if (!this.loaded) await this.init();
-    if (this.items.some((i) => i.index === chunk.index)) return; // idempotente
+    if (this.items.some((i) => i.index === chunk.index)) return; // idempotente por index
     this.items.push({ ...chunk, state: 'pending', attempts: 0 });
     await this.store.save(this.items);
   }
 
-  /** Tenta subir todos os pendentes. Falhas ficam na fila para a próxima vez. */
+  /**
+   * Tenta subir cada bloco não confirmado uma vez. Falhas voltam a 'pending'
+   * (sempre retentáveis na próxima chamada/retomada); nada é descartado.
+   */
   async flush(): Promise<{ uploaded: number; pending: number }> {
     if (!this.loaded) await this.init();
     let uploaded = 0;
     for (const item of this.items) {
       if (item.state === 'uploaded') continue;
-      if (item.attempts >= this.maxAttempts && item.state === 'failed') continue;
       item.state = 'uploading';
       try {
         await this.uploader.upload(item);
         item.state = 'uploaded';
+        delete item.lastError;
         uploaded += 1;
       } catch (err) {
         item.attempts += 1;
         item.lastError = err instanceof Error ? err.message : String(err);
-        // Esgotou as tentativas → 'failed' (continua na fila, não descarta).
-        item.state = item.attempts >= this.maxAttempts ? 'failed' : 'pending';
+        item.state = 'pending'; // continua na fila, será retentado
       }
       await this.store.save(this.items);
     }

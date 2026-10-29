@@ -70,13 +70,17 @@ export default function Gravando() {
     recorderRef.current = null;
     // Persiste os momentos marcados (viram destaques na ata).
     if (recorder && recordingIdRef.current) {
+      // Contrato do pipeline: highlights é lista de minutos (ms).
       await supabase
         .from('recordings')
-        .update({ highlights: recorder.getMoments() })
+        .update({ highlights: recorder.getMoments().map((m) => m.atMs) })
         .eq('id', recordingIdRef.current);
     }
     if (r && r.pending > 0) {
-      Alert.alert('Enviando', `${r.pending} bloco(s) ainda subindo. Continua em segundo plano.`);
+      Alert.alert(
+        'Faltam blocos',
+        `${r.pending} bloco(s) ainda não enviados. Serão reenviados ao reabrir o app com internet.`,
+      );
     }
     router.back();
   }

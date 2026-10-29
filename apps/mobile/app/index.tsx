@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link } from 'expo-router';
 import { isConfigured, supabase } from '@/lib/supabase';
+import { resumePendingUploads } from '@/lib/resume';
 
 type Row = { id: string; title: string; status: string; created_at: string };
 
@@ -14,6 +15,8 @@ export default function Biblioteca() {
       setMsg('Conecte o Supabase (EXPO_PUBLIC_SUPABASE_URL/ANON_KEY).');
       return;
     }
+    // Retoma uploads pendentes de gravações anteriores (não perder áudio).
+    void resumePendingUploads();
     void supabase
       .from('recordings')
       .select('id, title, status, created_at')
