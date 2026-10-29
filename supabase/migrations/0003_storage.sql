@@ -10,11 +10,16 @@ insert into storage.buckets (id, name, public)
 values ('logos', 'logos', false)
 on conflict (id) do nothing;
 
--- A primeira pasta do caminho é o organization_id; só membros da empresa acessam.
+-- Caminho: {organization_id}/{recording_id}/{arquivo}.
+-- Leitura respeita a visibilidade da gravação (a 2ª pasta é o recording_id).
 create policy "audio por empresa — select" on storage.objects
   for select using (
     bucket_id = 'audio'
     and (storage.foldername(name))[1]::uuid in (select public.current_org_ids())
+    and (
+      (storage.foldername(name))[2] is null
+      or public.can_access_recording((storage.foldername(name))[2]::uuid)
+    )
   );
 create policy "audio por empresa — insert" on storage.objects
   for insert with check (

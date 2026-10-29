@@ -1,23 +1,16 @@
--- Talkin — M0: Row Level Security. Isolamento por empresa.
--- Toda leitura/escrita passa pela função de membership (SECURITY DEFINER evita
--- recursão de RLS ao consultar a própria tabela memberships).
+-- Talkin — M0: Row Level Security. Isolamento por empresa + visibilidade da gravação.
+-- Funções SECURITY DEFINER evitam recursão de RLS ao consultar memberships.
 
 create or replace function public.current_org_ids()
 returns setof uuid
-language sql
-stable
-security definer
-set search_path = public
+language sql stable security definer set search_path = public
 as $$
   select organization_id from memberships where user_id = auth.uid();
 $$;
 
 create or replace function public.is_org_member(org uuid)
 returns boolean
-language sql
-stable
-security definer
-set search_path = public
+language sql stable security definer set search_path = public
 as $$
   select exists (
     select 1 from memberships
@@ -27,10 +20,7 @@ $$;
 
 create or replace function public.is_org_admin(org uuid)
 returns boolean
-language sql
-stable
-security definer
-set search_path = public
+language sql stable security definer set search_path = public
 as $$
   select exists (
     select 1 from memberships
@@ -38,18 +28,94 @@ as $$
   );
 $$;
 
-create or replace function public.can_access_recording(rec uuid)
+create or replace function public.is_org_gestor_or_admin(org uuid)
 returns boolean
-language sql
-stable
-security definer
-set search_path = public
+language sql stable security definer set search_path = public
 as $$
   select exists (
-    select 1 from recordings r
-    where r.id = rec and public.is_org_member(r.organization_id)
+    select 1 from memberships
+    where user_id = auth.uid() and organization_id = org and role in ('admin', 'gestor')
   );
 $$;
+
+-- Acesso a uma gravação respeitando a visibilidade (SPEC 23).
+-- Usado nas policies de select e nas policies de storage do áudio.
+create or replace function public.can_access_recording(rec uuid)
+returns boolean
+language sql stable security definer set search_path = public
+as $$
+  select exists (
+    select 1
+    from recordings r
+    where r.id = rec
+      and public.is_org_member(r.organization_id)
+      and (
+        r.visibility = 'empresa'
+        or r.created_by = auth.uid()
+        or public.is_org_admin(r.organization_id)
+        or (r.visibility = 'projeto' and public.is_org_gestor_or_admin(r.organization_id))
+      )
+  );
+$$;
+
+-- ─────────────── Bootstrap seguro de empresa (sem self-insert) ────────────────
+-- Cria a empresa, torna o criador admin e preenche o profile numa transação só.
+create or replace function public.create_organization(p_nome_fantasia text)
+returns uuid
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_email text;
+  v_org uuid;
+begin
+  if v_uid is null then
+    raise exception 'não autenticado';
+  end if;
+  select email into v_email from auth.users where id = v_uid;
+
+  insert into organizations (nome_fantasia) values (p_nome_fantasia) returning id into v_org;
+  insert into memberships (organization_id, user_id, role) values (v_org, v_uid, 'admin');
+  insert into profiles (id, organization_id, email)
+    values (v_uid, v_org, coalesce(v_email, ''))
+  on conflict (id) do update set organization_id = excluded.organization_id;
+
+  return v_org;
+end;
+$$;
+
+-- Preenche profiles.email a partir de auth.users (não confia no cliente).
+create or replace function public.profiles_set_email()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  new.email := coalesce((select email from auth.users where id = new.id), new.email);
+  return new;
+end;
+$$;
+
+create trigger profiles_email_trg
+  before insert or update on profiles
+  for each row execute function public.profiles_set_email();
+
+-- Impede que o cliente mexa em campos de custo/billing (só service_role).
+create or replace function public.recordings_guard_server_fields()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if auth.role() is distinct from 'service_role' then
+    new.cost_transcription_cents := old.cost_transcription_cents;
+    new.cost_ai_cents := old.cost_ai_cents;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger recordings_guard_trg
+  before update on recordings
+  for each row execute function public.recordings_guard_server_fields();
 
 -- ─────────────────────────── Habilitar RLS ───────────────────────────
 alter table organizations    enable row level security;
@@ -67,10 +133,9 @@ alter table action_items     enable row level security;
 alter table processing_jobs  enable row level security;
 
 -- ─────────────────────────── organizations ───────────────────────────
+-- Criação só via create_organization() (SECURITY DEFINER); sem policy de insert.
 create policy org_select on organizations
   for select using (public.is_org_member(id));
-create policy org_insert on organizations
-  for insert with check (auth.uid() is not null);
 create policy org_update on organizations
   for update using (public.is_org_admin(id)) with check (public.is_org_admin(id));
 create policy org_delete on organizations
@@ -80,18 +145,20 @@ create policy org_delete on organizations
 create policy profiles_select on profiles
   for select using (id = auth.uid() or organization_id in (select public.current_org_ids()));
 create policy profiles_insert on profiles
-  for insert with check (id = auth.uid());
+  for insert with check (id = auth.uid() and organization_id in (select public.current_org_ids()));
 create policy profiles_update on profiles
-  for update using (id = auth.uid()) with check (id = auth.uid());
+  for update using (id = auth.uid())
+  with check (id = auth.uid() and organization_id in (select public.current_org_ids()));
 
 -- ──────────────────────────── memberships ────────────────────────────
+-- Só admin administra membros; o primeiro admin nasce no create_organization().
 create policy memberships_select on memberships
   for select using (organization_id in (select public.current_org_ids()));
--- bootstrap: o usuário pode se adicionar; depois só admin administra
 create policy memberships_insert on memberships
-  for insert with check (user_id = auth.uid() or public.is_org_admin(organization_id));
+  for insert with check (public.is_org_admin(organization_id));
 create policy memberships_update on memberships
-  for update using (public.is_org_admin(organization_id));
+  for update using (public.is_org_admin(organization_id))
+  with check (public.is_org_admin(organization_id));
 create policy memberships_delete on memberships
   for delete using (public.is_org_admin(organization_id));
 
@@ -100,16 +167,43 @@ create policy projects_all on projects
   for all using (public.is_org_member(organization_id))
   with check (public.is_org_member(organization_id));
 
--- templates globais (organization_id null) são legíveis por qualquer autenticado
 create policy templates_select on templates
   for select using (organization_id is null or public.is_org_member(organization_id));
 create policy templates_write on templates
   for all using (organization_id is not null and public.is_org_member(organization_id))
   with check (organization_id is not null and public.is_org_member(organization_id));
 
-create policy recordings_all on recordings
-  for all using (public.is_org_member(organization_id))
-  with check (public.is_org_member(organization_id));
+-- recordings: select respeita visibilidade; insert/update checam dono + FKs da mesma empresa.
+create policy recordings_select on recordings
+  for select using (
+    public.is_org_member(organization_id) and (
+      visibility = 'empresa'
+      or created_by = auth.uid()
+      or public.is_org_admin(organization_id)
+      or (visibility = 'projeto' and public.is_org_gestor_or_admin(organization_id))
+    )
+  );
+create policy recordings_insert on recordings
+  for insert with check (
+    public.is_org_member(organization_id)
+    and created_by = auth.uid()
+    and (
+      project_id is null
+      or exists (select 1 from projects p where p.id = project_id and p.organization_id = recordings.organization_id)
+    )
+    and (
+      template_id is null
+      or exists (
+        select 1 from templates t
+        where t.id = template_id and (t.organization_id is null or t.organization_id = recordings.organization_id)
+      )
+    )
+  );
+create policy recordings_update on recordings
+  for update using (created_by = auth.uid() or public.is_org_admin(organization_id))
+  with check (created_by = auth.uid() or public.is_org_admin(organization_id));
+create policy recordings_delete on recordings
+  for delete using (created_by = auth.uid() or public.is_org_admin(organization_id));
 
 -- ─────────────── Tabelas-filhas (acesso via gravação) ────────────────
 create policy recording_chunks_all on recording_chunks
@@ -132,9 +226,9 @@ create policy action_items_all on action_items
   for all using (public.can_access_recording(recording_id))
   with check (public.can_access_recording(recording_id));
 
-create policy processing_jobs_all on processing_jobs
-  for all using (public.can_access_recording(recording_id))
-  with check (public.can_access_recording(recording_id));
+-- processing_jobs: cliente só lê; escrita é do worker (service_role, que ignora RLS).
+create policy processing_jobs_select on processing_jobs
+  for select using (public.can_access_recording(recording_id));
 
 -- segments: acesso via transcript → recording
 create policy segments_all on segments
