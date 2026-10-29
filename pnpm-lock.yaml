@@ -139,6 +139,9 @@ importers:
       '@talkin/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@talkin/pdf':
+        specifier: workspace:*
+        version: link:../../packages/pdf
       '@talkin/pipeline':
         specifier: workspace:*
         version: link:../../packages/pipeline

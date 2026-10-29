@@ -3,7 +3,11 @@ import { buildAtaHtml } from './html';
 import type { AtaDoc } from './types';
 
 const doc: AtaDoc = {
-  org: { nome_fantasia: 'Construtora Exemplo', accent_color: '#94efda', cnpj: '00.000.000/0001-00' },
+  org: {
+    nome_fantasia: 'Construtora Exemplo',
+    accent_color: '#94efda',
+    cnpj: '00.000.000/0001-00',
+  },
   recording: {
     title: 'Reunião de obra semanal',
     date: '2026-10-29T12:00:00-03:00',
@@ -18,7 +22,13 @@ const doc: AtaDoc = {
     extracao: {
       decisoes: [{ texto: 'Concretagem 30/10', minuto_ms: 4000, quem: 'Júlio' }],
       pendencias: [
-        { texto: 'Confirmar prazo', responsavel: null, prazo: '2026-10-31', prazo_estimado: false, minuto_ms: 0 },
+        {
+          texto: 'Confirmar prazo',
+          responsavel: null,
+          prazo: '2026-10-31',
+          prazo_estimado: false,
+          minuto_ms: 0,
+        },
       ],
       valores: [{ descricao: 'Concreto', valor: 512, unidade: 'R$', minuto_ms: 1000 }],
       prazos: [{ evento: 'Concretagem', data: '2026-10-30', minuto_ms: 4000 }],
@@ -30,7 +40,7 @@ const doc: AtaDoc = {
 describe('buildAtaHtml', () => {
   it('monta a ata Executiva com Sora, acento e formato BR', () => {
     const html = buildAtaHtml(doc);
-    expect(html).toContain("family=Sora");
+    expect(html).toContain('family=Sora');
     expect(html).toContain('--accent: #94efda');
     expect(html).toContain('Reunião de obra semanal');
     expect(html).toContain('Revisada');

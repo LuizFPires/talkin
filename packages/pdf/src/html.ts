@@ -29,7 +29,10 @@ export function buildAtaHtml(doc: AtaDoc): string {
   const { ata, recording, org } = doc;
   const ex = ata.extracao;
 
-  const logo = org.logo_light_url || org.logo_url;
+  // Só aceita logo https/data/blob (bloqueia http/file e SSRF no render server-side).
+  // O worker deve passar a logo como data: URI; sem logo válida, usa o nome fantasia.
+  const rawLogo = org.logo_light_url || org.logo_url;
+  const logo = rawLogo && /^(https:|data:|blob:)/i.test(rawLogo) ? rawLogo : null;
   const marca = logo
     ? `<img src="${esc(logo)}" alt="${esc(org.nome_fantasia)}" style="max-height:40px" />`
     : `<div style="font-family:'Sora';font-weight:600;font-size:20px">${esc(org.nome_fantasia)}</div>`;
@@ -88,7 +91,9 @@ export function buildAtaHtml(doc: AtaDoc): string {
           (v) =>
             `<li>${esc(v.descricao)} — ${esc(v.unidade === 'R$' ? formatBRL(v.valor) : `${v.valor} ${v.unidade}`)} ${v.minuto_ms !== null ? pill(formatMinute(v.minuto_ms), true) : ''}</li>`,
         )
-        .join('')}</ul>${totalValores > 0 ? `<div class="total">${pill(`Total: ${formatBRL(totalValores)}`)}</div>` : ''}</section>`
+        .join(
+          '',
+        )}</ul>${totalValores > 0 ? `<div class="total">${pill(`Total: ${formatBRL(totalValores)}`)}</div>` : ''}</section>`
     : '';
 
   const prazos = ex.prazos.length

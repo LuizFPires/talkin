@@ -10,6 +10,16 @@ export async function renderAtaPdf(doc: AtaDoc): Promise<Uint8Array> {
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
+    // Bloqueia toda rede exceto as fontes (anti-SSRF). A logo deve vir como data: URI.
+    const permitidos = new Set(['fonts.googleapis.com', 'fonts.gstatic.com']);
+    await page.route('**', (route) => {
+      const url = route.request().url();
+      if (url.startsWith('data:') || permitidos.has(new URL(url).hostname)) {
+        void route.continue();
+      } else {
+        void route.abort();
+      }
+    });
     await page.setContent(buildAtaHtml(doc), { waitUntil: 'networkidle' });
     return await page.pdf({ format: 'A4', printBackground: true });
   } finally {
