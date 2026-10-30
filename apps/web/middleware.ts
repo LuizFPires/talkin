@@ -29,5 +29,9 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+  // Não roda em /api (as rotas validam a sessão sozinhas) nem em estáticos —
+  // evita um getUser() de rede a cada chamada de API.
+  matcher: [
+    '/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
 };
