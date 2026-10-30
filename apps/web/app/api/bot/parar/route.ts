@@ -17,21 +17,24 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
 
-  // RLS garante que só um bot da empresa do usuário é visível/alterável.
-  const { data: bot } = await supabase
+  // Marca como saiu: a RLS de update exige gestor/admin da empresa do bot
+  // (controle de custo). 0 linhas = sem permissão ou bot inexistente.
+  const { data: parado } = await supabase
     .from('meeting_bots')
-    .select('id, provider_bot_id')
+    .update({ status: 'saiu' })
     .eq('id', botId)
+    .select('id, provider_bot_id')
     .maybeSingle();
-  if (!bot) return NextResponse.json({ error: 'Não encontrado.' }, { status: 404 });
+  if (!parado) {
+    return NextResponse.json({ error: 'Sem permissão ou bot inexistente.' }, { status: 403 });
+  }
 
-  if (bot.provider_bot_id) {
+  if (parado.provider_bot_id) {
     try {
-      await selectBotProvider().stopBot(bot.provider_bot_id as string);
+      await selectBotProvider().stopBot(parado.provider_bot_id as string);
     } catch {
-      // segue para marcar como saiu mesmo se o provedor falhar
+      // provedor falhou, mas o bot já consta como encerrado
     }
   }
-  await supabase.from('meeting_bots').update({ status: 'saiu' }).eq('id', botId);
   return NextResponse.json({ ok: true });
 }

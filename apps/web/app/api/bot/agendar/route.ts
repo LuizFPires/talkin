@@ -26,13 +26,21 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
   const { data: m } = await supabase
     .from('memberships')
-    .select('organization_id')
+    .select('organization_id, role')
     .eq('user_id', user.id)
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
   const org = m?.organization_id as string | undefined;
   if (!org) return NextResponse.json({ error: 'Empresa não encontrada.' }, { status: 400 });
+  // Bot gera custo: só gestor/admin agenda (a inserção via service role ignora RLS).
+  const role = m?.role as string | undefined;
+  if (role !== 'gestor' && role !== 'admin') {
+    return NextResponse.json(
+      { error: 'Só gestor ou admin pode agendar o bot (controle de custo).' },
+      { status: 403 },
+    );
+  }
 
   const custoHoraCents = estimarCustoBotCents(60, BOT_CENTS_PER_HOUR);
 
