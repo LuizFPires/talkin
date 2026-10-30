@@ -52,3 +52,10 @@ coverage/
 
 # Roteiro (estado local do fluxo de milestones)
 .claude/
+
+# Vercel (link local; nunca versionar)
+.vercel
+
+# Variáveis locais (mantém .env.example versionado)
+.env
+.env*.local
