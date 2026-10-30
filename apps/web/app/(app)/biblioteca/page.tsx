@@ -5,7 +5,6 @@ import { formatDateBR, type RecordingSource, type RecordingStatus } from '@talki
 import { Card, Rotulo, Pilula } from '@talkin/ui';
 import { StatusBadge } from '@/components/status-badge';
 import { BuscaLivre } from '@/components/busca-livre';
-import { criarGravacaoVazia } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,26 +57,56 @@ export default async function BibliotecaPage() {
           <Rotulo>Biblioteca</Rotulo>
           <h1 style={{ fontSize: 24, margin: '4px 0 0', fontWeight: 600 }}>Gravações</h1>
         </div>
-        <form action={criarGravacaoVazia}>
-          <button
-            type="submit"
-            disabled={!configurado}
-            style={{
-              padding: '10px 16px',
-              borderRadius: 'var(--radius-pill)',
-              border: '1px solid var(--accent)',
-              background: 'var(--accent)',
-              color: 'var(--on-accent)',
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: configurado ? 'pointer' : 'not-allowed',
-              opacity: configurado ? 1 : 0.5,
-            }}
-          >
-            Nova gravação
-          </button>
-        </form>
+        <Link
+          href="/importar"
+          style={{
+            fontSize: 13,
+            color: 'var(--text-secondary)',
+            textDecoration: 'none',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Importar áudio
+        </Link>
       </header>
+
+      {/* Ação principal: gravar. Grande e óbvio — é o que o app faz primeiro. */}
+      <Link
+        href="/gravar"
+        aria-label="Gravar reunião"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 12,
+          padding: '22px 24px',
+          marginBottom: 16,
+          borderRadius: 'var(--radius-card)',
+          background: 'var(--accent)',
+          color: 'var(--on-accent)',
+          fontWeight: 700,
+          fontSize: 18,
+          textDecoration: 'none',
+        }}
+      >
+        <svg
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor" stroke="none" />
+          <path d="M6 11a6 6 0 0 0 12 0" />
+          <line x1="12" y1="17" x2="12" y2="21" />
+          <line x1="9" y1="21" x2="15" y2="21" />
+        </svg>
+        Gravar reunião
+      </Link>
 
       {configurado && <BuscaLivre />}
 
