@@ -1,6 +1,10 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# node_modules plano: React Native/Expo (Metro) não resolvem bem a árvore
+# isolada do pnpm (deps transitivas/"fantasma" como query-string do expo-router).
+nodeLinker: hoisted
 allowBuilds:
   esbuild: true
   "@tailwindcss/oxide": true

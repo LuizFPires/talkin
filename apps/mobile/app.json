@@ -21,14 +21,32 @@
         "RECORD_AUDIO",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_MICROPHONE",
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "plugins": [
       "expo-router",
-      ["expo-av", { "microphonePermission": "O Talkin usa o microfone para gravar reuniões." }],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "O Talkin usa o microfone para gravar reuniões."
+        }
+      ],
       "expo-notifications"
     ],
-    "experiments": { "typedRoutes": true }
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "796c5d97-64d0-4ac7-b0aa-69ea5449b2c2"
+      }
+    },
+    "owner": "luizfpires"
   }
 }
