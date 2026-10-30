@@ -226,28 +226,22 @@ export function createSupabasePorts(): PipelinePorts {
     },
 
     async saveEmbeddings(items) {
-      for (const it of items) {
-        // pgvector espera o literal '[...]', igual ao caminho de leitura.
-        const { error } = await db
-          .from('segments')
-          .update({ embedding: toVectorLiteral(it.embedding) })
-          .eq('id', it.segmentId);
-        if (error) throw new Error(`falha ao salvar embedding: ${error.message}`);
-      }
+      if (!items.length) return;
+      // Lote: 1 RPC com unnest() em vez de N updates (etapa embed era a mais lenta).
+      // pgvector espera o literal '[...]', igual ao caminho de leitura.
+      const ids = items.map((it) => it.segmentId);
+      const embs = items.map((it) => toVectorLiteral(it.embedding));
+      const { error } = await db.rpc('set_segment_embeddings', { p_ids: ids, p_embs: embs });
+      if (error) throw new Error(`falha ao salvar embeddings: ${error.message}`);
     },
 
     async addAiCost(recordingId, cents) {
-      // service role: o guard permite alterar custo. Incremento (lê e soma).
-      const { data } = await db
-        .from('recordings')
-        .select('cost_ai_cents')
-        .eq('id', recordingId)
-        .single();
-      const atual = (data?.cost_ai_cents as number | undefined) ?? 0;
-      await db
-        .from('recordings')
-        .update({ cost_ai_cents: atual + cents })
-        .eq('id', recordingId);
+      // Incremento atômico (evita corrida de read-modify-write); guard permite via service role.
+      const { error } = await db.rpc('increment_ai_cost', {
+        p_recording: recordingId,
+        p_cents: cents,
+      });
+      if (error) throw new Error(`falha ao somar custo de IA: ${error.message}`);
     },
   };
 }
