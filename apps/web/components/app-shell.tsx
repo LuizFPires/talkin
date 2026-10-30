@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Sidebar, Rotulo, Pilula } from '@talkin/ui';
@@ -107,6 +108,11 @@ export function AppShell({ email, children }: { email: string; children: React.R
   const pathname = usePathname();
   const router = useRouter();
   const activeKey = ITENS.find((i) => pathname.startsWith(i.key))?.key ?? '/biblioteca';
+
+  // Prefetch das rotas do menu: o clique usa o payload já buscado (navegação instantânea).
+  useEffect(() => {
+    ITENS.forEach((i) => router.prefetch(i.key));
+  }, [router]);
 
   async function sair() {
     await createClient().auth.signOut();

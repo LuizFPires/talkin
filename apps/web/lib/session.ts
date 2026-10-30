@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { createClient } from './supabase/server';
 import { isSupabaseConfigured } from './supabase/env';
 
@@ -8,8 +9,11 @@ export type SessionInfo = {
   role: string | null;
 };
 
-/** Usuário logado + empresa/papel (null se não houver sessão ou Supabase não conectado). */
-export async function getSession(): Promise<SessionInfo | null> {
+/**
+ * Usuário logado + empresa/papel (null se não houver sessão ou Supabase não conectado).
+ * Memoizado por request (cache): layout e páginas compartilham o mesmo resultado.
+ */
+export const getSession = cache(async function getSession(): Promise<SessionInfo | null> {
   if (!isSupabaseConfigured()) return null;
 
   const supabase = await createClient();
@@ -32,4 +36,4 @@ export async function getSession(): Promise<SessionInfo | null> {
     organizationId: membership?.organization_id ?? null,
     role: membership?.role ?? null,
   };
-}
+});
