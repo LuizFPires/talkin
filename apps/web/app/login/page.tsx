@@ -12,23 +12,50 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
   const configurado = isSupabaseConfigured();
 
   async function enviar(e: React.FormEvent) {
     e.preventDefault();
     setErro(null);
+    setAviso(null);
     if (!configurado) {
       setErro('Conecte o Supabase (variáveis de ambiente) para entrar.');
       return;
     }
     setCarregando(true);
     const supabase = createClient();
-    const fn =
-      modo === 'entrar'
-        ? supabase.auth.signInWithPassword({ email, password: senha })
-        : supabase.auth.signUp({ email, password: senha });
-    const { error } = await fn;
+
+    if (modo === 'criar') {
+      const { data, error } = await supabase.auth.signUp({ email, password: senha });
+      setCarregando(false);
+      if (error) {
+        setErro(error.message);
+        return;
+      }
+      // Supabase devolve um usuário com identities vazio quando o e-mail já existe
+      // (proteção contra enumeração) — tratamos como "já tem conta".
+      if (data.user && (data.user.identities?.length ?? 1) === 0) {
+        setModo('entrar');
+        setAviso('Este e-mail já tem conta. Faça login abaixo.');
+        return;
+      }
+      // Sem sessão = confirmação de e-mail obrigatória: não dá para entrar ainda.
+      if (!data.session) {
+        setModo('entrar');
+        setAviso(
+          'Conta criada. Enviamos um link de confirmação para o seu e-mail — confirme e depois entre.',
+        );
+        return;
+      }
+      // Confirmação desligada: a sessão já veio, segue direto.
+      router.push('/biblioteca');
+      router.refresh();
+      return;
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
     setCarregando(false);
     if (error) {
       setErro(error.message);
@@ -85,6 +112,11 @@ export default function LoginPage() {
               {erro}
             </span>
           )}
+          {aviso && (
+            <span style={{ color: 'var(--text-secondary)', fontSize: 13 }} role="status">
+              {aviso}
+            </span>
+          )}
           <button type="submit" disabled={carregando} style={botao}>
             {carregando ? '...' : modo === 'entrar' ? 'Entrar' : 'Criar conta'}
           </button>
@@ -92,7 +124,11 @@ export default function LoginPage() {
 
         <button
           type="button"
-          onClick={() => setModo(modo === 'entrar' ? 'criar' : 'entrar')}
+          onClick={() => {
+            setErro(null);
+            setAviso(null);
+            setModo(modo === 'entrar' ? 'criar' : 'entrar');
+          }}
           style={{
             marginTop: 16,
             background: 'none',
