@@ -1,8 +1,9 @@
-import { Audio } from 'expo-av';
+import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import { RecordingSession, UploadQueue, type Chunk, type Moment } from '@talkin/capture';
 import { chunkUploader } from './upload';
 import { queueStore } from './queue-store';
+import { iniciarNotificacaoGravacao, pararNotificacaoGravacao } from './notify';
 
 const TICK_MS = 1000;
 
@@ -45,7 +46,17 @@ export class MeetingRecorder {
   async start(): Promise<void> {
     await this.queue.init();
     await Audio.requestPermissionsAsync();
-    await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+    // Mantém a captura ativa em segundo plano e não mistura/abaixa em interrupções
+    // (uma ligação, por exemplo, pausa o áudio em vez de corromper o bloco).
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: true,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: true,
+      interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+      interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+      shouldDuckAndroid: false,
+    });
+    await iniciarNotificacaoGravacao(); // indicador permanente (nunca gravar sem indicador)
     await this.startChunk();
     this.timer = setInterval(() => void this.onTick(), TICK_MS);
   }
@@ -118,6 +129,7 @@ export class MeetingRecorder {
     this.stopped = true;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    await pararNotificacaoGravacao();
     const last = await this.finishChunk();
     if (last) await this.queue.add(last);
     const { pending } = await this.queue.flush();

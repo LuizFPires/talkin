@@ -17,7 +17,12 @@
     },
     "android": {
       "package": "ai.humanacademy.talkin",
-      "permissions": ["RECORD_AUDIO", "FOREGROUND_SERVICE", "POST_NOTIFICATIONS"]
+      "permissions": [
+        "RECORD_AUDIO",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_MICROPHONE",
+        "POST_NOTIFICATIONS"
+      ]
     },
     "plugins": [
       "expo-router",
