@@ -20,3 +20,83 @@ body {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* ───────── Shell responsivo (desktop: sidebar · mobile: barra inferior) ───────── */
+.app-shell {
+  display: flex;
+  min-height: 100dvh;
+  gap: 12px;
+  padding: 12px;
+}
+.app-sidebar {
+  display: flex;
+}
+.app-main {
+  flex: 1;
+  min-width: 0;
+}
+.app-topbar,
+.app-bottomnav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .app-shell {
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+  }
+  .app-sidebar {
+    display: none;
+  }
+  .app-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    padding: 12px 16px;
+    padding-top: calc(12px + env(safe-area-inset-top));
+    background: color-mix(in srgb, var(--bg) 85%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .app-main {
+    /* espaço para a barra inferior fixa + safe-area do aparelho */
+    padding: 16px;
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+  .app-bottomnav {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 30;
+    background: var(--gradient-sidebar);
+    border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .app-bottomnav button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 58px;
+    padding: 8px 4px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-family: var(--font-ui);
+    -webkit-tap-highlight-color: transparent;
+    transition: color 0.15s ease;
+  }
+  .app-bottomnav button.tab-active {
+    color: var(--accent);
+  }
+}
