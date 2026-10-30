@@ -25,60 +25,63 @@ export default async function GravacaoPage({ params }: { params: Promise<{ id: s
   }
 
   const supabase = await createClient();
-  const { data: rec } = await supabase
-    .from('recordings')
-    .select('id, title, status, source, duration_s, created_at, template_id')
-    .eq('id', id)
-    .is('deleted_at', null)
-    .maybeSingle();
+
+  // Consultas independentes em paralelo (antes eram 4 RTTs em série).
+  const [recRes, templatesRes, summaryRes, transcriptRes, chunkRes] = await Promise.all([
+    supabase
+      .from('recordings')
+      .select('id, title, status, source, duration_s, created_at, template_id')
+      .eq('id', id)
+      .is('deleted_at', null)
+      .maybeSingle(),
+    supabase.from('templates').select('id, key, name').order('name', { ascending: true }),
+    supabase
+      .from('summaries')
+      .select('content')
+      .eq('recording_id', id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('transcripts')
+      .select('id')
+      .eq('recording_id', id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('recording_chunks')
+      .select('storage_path')
+      .eq('recording_id', id)
+      .order('index', { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const rec = recRes.data;
   if (!rec) notFound();
 
-  const { data: templatesData } = await supabase
-    .from('templates')
-    .select('id, key, name')
-    .order('name', { ascending: true });
-  const templates = (templatesData as { id: string; key: string; name: string }[] | null) ?? [];
+  const templates = (templatesRes.data as { id: string; key: string; name: string }[] | null) ?? [];
+  const summary = summaryRes.data;
+  const transcript = transcriptRes.data;
+  const chunk = chunkRes.data;
 
-  const { data: summary } = await supabase
-    .from('summaries')
-    .select('content')
-    .eq('recording_id', id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Dependentes (segments precisa do transcript; URL assinada precisa do chunk) — em paralelo.
+  const [segmentsRes, signedRes] = await Promise.all([
+    transcript
+      ? supabase
+          .from('segments')
+          .select('start_ms, end_ms, text, speaker:speakers(label, display_name)')
+          .eq('transcript_id', transcript.id)
+          .order('start_ms', { ascending: true })
+      : Promise.resolve({ data: null }),
+    chunk
+      ? supabase.storage.from('audio').createSignedUrl(chunk.storage_path, 3600)
+      : Promise.resolve({ data: null }),
+  ]);
 
-  const { data: transcript } = await supabase
-    .from('transcripts')
-    .select('id')
-    .eq('recording_id', id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  let segments: SegmentRow[] = [];
-  if (transcript) {
-    const { data } = await supabase
-      .from('segments')
-      .select('start_ms, end_ms, text, speaker:speakers(label, display_name)')
-      .eq('transcript_id', transcript.id)
-      .order('start_ms', { ascending: true });
-    segments = (data as unknown as SegmentRow[] | null) ?? [];
-  }
-
-  const { data: chunk } = await supabase
-    .from('recording_chunks')
-    .select('storage_path')
-    .eq('recording_id', id)
-    .order('index', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  let audioUrl: string | null = null;
-  if (chunk) {
-    const { data: signed } = await supabase.storage
-      .from('audio')
-      .createSignedUrl(chunk.storage_path, 3600);
-    audioUrl = signed?.signedUrl ?? null;
-  }
+  const segments = (segmentsRes.data as unknown as SegmentRow[] | null) ?? [];
+  const audioUrl = (signedRes.data as { signedUrl?: string } | null)?.signedUrl ?? null;
 
   const ata = summary?.content ? AtaContent.safeParse(summary.content) : null;
 
