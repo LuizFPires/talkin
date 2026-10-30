@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Sidebar, Rotulo, Pilula } from '@talkin/ui';
@@ -192,6 +193,28 @@ export function AppShell({ email, children }: { email: string; children: React.R
           );
         })}
       </nav>
+
+      {/* Gravar sempre à mão (some na própria tela de gravação). */}
+      {!pathname.startsWith('/gravar') && (
+        <Link href="/gravar" className="fab-gravar" aria-label="Gravar reunião">
+          <svg
+            width={26}
+            height={26}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.8}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor" stroke="none" />
+            <path d="M6 11a6 6 0 0 0 12 0" />
+            <line x1="12" y1="17" x2="12" y2="21" />
+            <line x1="9" y1="21" x2="15" y2="21" />
+          </svg>
+        </Link>
+      )}
     </div>
   );
 }
