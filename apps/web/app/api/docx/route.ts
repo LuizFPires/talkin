@@ -2,13 +2,14 @@ import { NextResponse } from 'next/server';
 import { Document, HeadingLevel, Packer, Paragraph, TextRun } from 'docx';
 import { AtaContent, formatBRL, formatDateBR } from '@talkin/core';
 import { createClient } from '@/lib/supabase/server';
+import { ehUuid } from '@/lib/uuid';
 
 export const maxDuration = 60;
 
 /** Exporta a ata em DOCX (SPEC 18). GET ?recordingId=... — respeita RLS. */
 export async function GET(request: Request) {
   const recordingId = new URL(request.url).searchParams.get('recordingId') ?? '';
-  if (!/^[0-9a-f-]{36}$/i.test(recordingId)) {
+  if (!ehUuid(recordingId)) {
     return NextResponse.json({ error: 'Requisição inválida.' }, { status: 400 });
   }
   const supabase = await createClient();
