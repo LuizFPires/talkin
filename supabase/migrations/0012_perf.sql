@@ -23,22 +23,36 @@ returns void
 language plpgsql security definer set search_path = public
 as $$
 begin
+  -- Só o worker (service role). SECURITY DEFINER ignora RLS, então travamos o acesso.
+  if auth.role() <> 'service_role' then
+    raise exception 'acesso negado';
+  end if;
   update segments s
      set embedding = v.emb::vector
     from (select unnest(p_ids) as id, unnest(p_embs) as emb) v
    where s.id = v.id;
 end;
 $$;
+revoke execute on function public.set_segment_embeddings(uuid[], text[]) from public;
+grant execute on function public.set_segment_embeddings(uuid[], text[]) to service_role;
 
 -- 5) Incremento atômico do custo de IA (evita corrida de read-modify-write).
 create or replace function public.increment_ai_cost(p_recording uuid, p_cents int)
 returns void
-language sql security definer set search_path = public
+language plpgsql security definer set search_path = public
 as $$
+begin
+  -- Só o worker (service role); o guard de recordings já barra, mas blindamos a RPC.
+  if auth.role() <> 'service_role' then
+    raise exception 'acesso negado';
+  end if;
   update recordings
      set cost_ai_cents = coalesce(cost_ai_cents, 0) + p_cents
    where id = p_recording;
+end;
 $$;
+revoke execute on function public.increment_ai_cost(uuid, int) from public;
+grant execute on function public.increment_ai_cost(uuid, int) to service_role;
 
 -- 6) Busca semântica: varrer mais listas do ivfflat melhora o recall (default = 1).
 --    O SET da função aplica só durante a chamada e reseta depois.
