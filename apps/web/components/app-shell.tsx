@@ -11,6 +11,98 @@ const ITENS = [
   { key: '/configuracoes', label: 'Configurações' },
 ];
 
+// Rótulos curtos para a barra inferior (mobile).
+const TABS = [
+  { key: '/biblioteca', label: 'Biblioteca' },
+  { key: '/importar', label: 'Importar' },
+  { key: '/bot', label: 'Bot' },
+  { key: '/configuracoes', label: 'Config' },
+];
+
+/** Ícones de linha (coerentes com o tema Human), um por aba. */
+function Icone({ nome }: { nome: string }) {
+  if (nome === '/biblioteca') {
+    return (
+      <svg
+        width={22}
+        height={22}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <rect x="4" y="4" width="7" height="7" rx="1.5" />
+        <rect x="13" y="4" width="7" height="7" rx="1.5" />
+        <rect x="4" y="13" width="7" height="7" rx="1.5" />
+        <rect x="13" y="13" width="7" height="7" rx="1.5" />
+      </svg>
+    );
+  }
+  if (nome === '/importar') {
+    return (
+      <svg
+        width={22}
+        height={22}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M12 15V4" />
+        <path d="M8 8l4-4 4 4" />
+        <path d="M5 19h14" />
+      </svg>
+    );
+  }
+  if (nome === '/bot') {
+    return (
+      <svg
+        width={22}
+        height={22}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <rect x="5" y="8" width="14" height="11" rx="3" />
+        <path d="M12 4v4" />
+        <circle cx="9.5" cy="13" r="1" />
+        <circle cx="14.5" cy="13" r="1" />
+      </svg>
+    );
+  }
+  // Configurações (sliders)
+  return (
+    <svg
+      width={22}
+      height={22}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 7h9" />
+      <circle cx="16" cy="7" r="2.3" />
+      <path d="M19 7h1" />
+      <path d="M4 17h2" />
+      <circle cx="8" cy="17" r="2.3" />
+      <path d="M11 17h9" />
+    </svg>
+  );
+}
+
 export function AppShell({ email, children }: { email: string; children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -32,32 +124,68 @@ export function AppShell({ email, children }: { email: string; children: React.R
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100dvh', gap: 12, padding: 12 }}>
-      <Sidebar
-        items={ITENS}
-        activeKey={activeKey}
-        onSelect={(key) => router.push(key)}
-        header={
-          <div style={{ padding: '4px 8px 16px' }}>
-            <Rotulo>Talkin</Rotulo>
-          </div>
-        }
-        footer={
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 8 }}>
-            <span style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '0 4px' }}>
-              {email}
-            </span>
+    <div className="app-shell">
+      {/* Desktop: barra lateral em painel */}
+      <div className="app-sidebar">
+        <Sidebar
+          items={ITENS}
+          activeKey={activeKey}
+          onSelect={(key) => router.push(key)}
+          header={
+            <div style={{ padding: '4px 8px 16px' }}>
+              <Rotulo>Talkin</Rotulo>
+            </div>
+          }
+          footer={
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 8 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '0 4px' }}>
+                {email}
+              </span>
+              <button
+                type="button"
+                onClick={sair}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+              >
+                <Pilula>Sair</Pilula>
+              </button>
+            </div>
+          }
+        />
+      </div>
+
+      {/* Mobile: topo fixo compacto */}
+      <header className="app-topbar">
+        <Rotulo>Talkin</Rotulo>
+        <button
+          type="button"
+          onClick={sair}
+          aria-label="Sair"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        >
+          <Pilula>Sair</Pilula>
+        </button>
+      </header>
+
+      <main className="app-main">{children}</main>
+
+      {/* Mobile: barra de navegação inferior (padrão de app) */}
+      <nav className="app-bottomnav" aria-label="Navegação principal">
+        {TABS.map((t) => {
+          const active = t.key === activeKey;
+          return (
             <button
+              key={t.key}
               type="button"
-              onClick={sair}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+              onClick={() => router.push(t.key)}
+              className={active ? 'tab-active' : undefined}
+              aria-current={active ? 'page' : undefined}
             >
-              <Pilula>Sair</Pilula>
+              <Icone nome={t.key} />
+              {t.label}
             </button>
-          </div>
-        }
-      />
-      <main style={{ flex: 1, minWidth: 0 }}>{children}</main>
+          );
+        })}
+      </nav>
     </div>
   );
 }
