@@ -67,6 +67,40 @@ body {
   }
 }
 
+/* Ponto de gravação pausada (estático, âmbar). */
+.rec-dot-paused {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--warning);
+}
+
+/* Botão flutuante de gravar (acessível de qualquer tela). */
+.fab-gravar {
+  position: fixed;
+  right: 20px;
+  bottom: 24px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+  box-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.4),
+    0 0 0 6px color-mix(in srgb, var(--accent) 14%, transparent);
+  z-index: 40;
+}
+@media (max-width: 768px) {
+  .fab-gravar {
+    right: 16px;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+}
+
 /* ───────── Shell responsivo (desktop: sidebar · mobile: barra inferior) ───────── */
 .app-shell {
   display: flex;

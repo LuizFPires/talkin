@@ -18,7 +18,8 @@ type Estado = {
   index: number;
   cadeia: Promise<void>; // fila sequencial de upload (nunca descarta um bloco)
   timer?: ReturnType<typeof setInterval>;
-  inicio: number;
+  acumuladoMs: number; // tempo já gravado (exclui pausas)
+  inicioSegmento: number; // início do trecho em execução
 };
 
 /** Escolhe um formato suportado pelo navegador (Chrome/Firefox: webm/opus; iOS: mp4). */
@@ -44,13 +45,21 @@ export default function GravarPage() {
   const router = useRouter();
   const configurado = isSupabaseConfigured();
   const [fase, setFase] = useState<Fase>('idle');
+  const [pausado, setPausado] = useState(false);
   const [titulo, setTitulo] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   const [segundos, setSegundos] = useState(0);
   const [enviados, setEnviados] = useState(0);
   const [total, setTotal] = useState(0);
+  const [momentos, setMomentos] = useState<number[]>([]);
 
-  const est = useRef<Estado>({ ext: 'webm', index: 0, cadeia: Promise.resolve(), inicio: 0 });
+  const est = useRef<Estado>({
+    ext: 'webm',
+    index: 0,
+    cadeia: Promise.resolve(),
+    acumuladoMs: 0,
+    inicioSegmento: 0,
+  });
 
   // Para tudo ao sair da tela (não deixa microfone aberto).
   useEffect(() => {
@@ -66,6 +75,13 @@ export default function GravarPage() {
     };
   }, []);
 
+  /** Posição atual da gravação em ms (congela quando pausada). */
+  function posMs(): number {
+    const e = est.current;
+    const rodando = e.rec?.state === 'recording';
+    return e.acumuladoMs + (rodando ? Date.now() - e.inicioSegmento : 0);
+  }
+
   async function subirBloco(
     supabase: SupabaseClient,
     org: string,
@@ -75,7 +91,7 @@ export default function GravarPage() {
     ext: string,
   ) {
     const path = `${org}/${recId}/${String(index).padStart(4, '0')}.${ext}`;
-    // Retry com backoff: um bloco só é descartado da fila após confirmação do servidor.
+    // Retry com backoff: um bloco só sai da fila após confirmação do servidor.
     let tentativa = 0;
     for (;;) {
       const { error } = await supabase.storage
@@ -146,10 +162,13 @@ export default function GravarPage() {
       e.ext = ext;
       e.index = 0;
       e.cadeia = Promise.resolve();
-      e.inicio = Date.now();
+      e.acumuladoMs = 0;
+      e.inicioSegmento = Date.now();
       setEnviados(0);
       setTotal(0);
       setSegundos(0);
+      setMomentos([]);
+      setPausado(false);
 
       const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
       e.rec = mr;
@@ -158,16 +177,43 @@ export default function GravarPage() {
         const idx = e.index++;
         const blob = ev.data;
         setTotal((n) => n + 1);
-        // Encadeia o upload (sequencial) sem travar a gravação.
         e.cadeia = e.cadeia.then(() => subirBloco(supabase, org, rec.id, idx, blob, ext));
       };
       mr.start(20000); // fecha um bloco a cada 20s (upload incremental)
-      e.timer = setInterval(() => setSegundos(Math.floor((Date.now() - e.inicio) / 1000)), 1000);
+      e.timer = setInterval(() => setSegundos(Math.floor(posMs() / 1000)), 500);
       setFase('gravando');
     } catch (err) {
       stream.getTracks().forEach((t) => t.stop());
       setErro(err instanceof Error ? err.message : 'falha ao iniciar a gravação');
     }
+  }
+
+  function pausar() {
+    const e = est.current;
+    if (!e.rec || e.rec.state !== 'recording') return;
+    e.acumuladoMs += Date.now() - e.inicioSegmento;
+    try {
+      e.rec.pause();
+    } catch {
+      // ignora
+    }
+    setPausado(true);
+  }
+
+  function retomar() {
+    const e = est.current;
+    if (!e.rec || e.rec.state !== 'paused') return;
+    e.inicioSegmento = Date.now();
+    try {
+      e.rec.resume();
+    } catch {
+      // ignora
+    }
+    setPausado(false);
+  }
+
+  function marcarMomento() {
+    setMomentos((m) => [...m, Math.floor(posMs())]);
   }
 
   async function parar() {
@@ -176,7 +222,7 @@ export default function GravarPage() {
     setFase('finalizando');
     if (e.timer) clearInterval(e.timer);
 
-    // Para o recorder (dispara o último bloco) e espera a fila de upload confirmar tudo.
+    // Para o recorder (dispara o último bloco) e espera a fila confirmar tudo.
     await new Promise<void>((resolve) => {
       e.rec!.onstop = () => resolve();
       try {
@@ -192,7 +238,15 @@ export default function GravarPage() {
       setErro(err instanceof Error ? err.message : 'um bloco não subiu; a gravação foi salva.');
     }
 
+    const supabase = createClient();
     try {
+      if (momentos.length) {
+        // Momentos marcados viram destaques da ata (SPEC 5). O guard libera highlights.
+        await supabase
+          .from('recordings')
+          .update({ highlights: momentos.map((atMs) => ({ atMs })) })
+          .eq('id', e.recordingId);
+      }
       await fetch('/api/process', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -249,15 +303,31 @@ export default function GravarPage() {
         {fase === 'gravando' && (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span className="rec-dot" />
-              <Rotulo>Gravando</Rotulo>
+              <span className={pausado ? 'rec-dot-paused' : 'rec-dot'} />
+              <Rotulo>{pausado ? 'Pausado' : 'Gravando'}</Rotulo>
             </div>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 44, fontWeight: 600 }}>
               {mmss(segundos)}
             </div>
             <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
               {enviados}/{total} blocos enviados
+              {momentos.length > 0 && ` · ${momentos.length} momento(s)`}
             </span>
+
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <button
+                type="button"
+                onClick={marcarMomento}
+                disabled={pausado}
+                style={botaoSecundario}
+              >
+                Marcar momento
+              </button>
+              <button type="button" onClick={pausado ? retomar : pausar} style={botaoSecundario}>
+                {pausado ? 'Retomar' : 'Pausar'}
+              </button>
+            </div>
+
             <button type="button" onClick={parar} style={botaoParar}>
               Parar e salvar
             </button>
@@ -345,5 +415,16 @@ const botaoParar: React.CSSProperties = {
   color: 'var(--danger)',
   fontWeight: 600,
   fontSize: 15,
+  cursor: 'pointer',
+};
+
+const botaoSecundario: React.CSSProperties = {
+  padding: '10px 16px',
+  borderRadius: 'var(--radius-pill)',
+  border: '1px solid var(--border)',
+  background: 'transparent',
+  color: 'var(--text)',
+  fontWeight: 500,
+  fontSize: 13,
   cursor: 'pointer',
 };
