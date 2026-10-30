@@ -1,0 +1,6 @@
+# Vercel (link local; nunca versionar)
+.vercel
+
+# Variáveis locais (mantém .env.example versionado)
+.env
+.env*.local
