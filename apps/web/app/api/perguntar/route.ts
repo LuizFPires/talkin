@@ -3,6 +3,7 @@ import { selectProviders } from '@talkin/pipeline';
 import type { TrechoContexto } from '@talkin/core';
 import { createClient } from '@/lib/supabase/server';
 import { responderPergunta, toVectorLiteral } from '@/lib/pergunte';
+import { ehUuid } from '@/lib/uuid';
 
 export const maxDuration = 60;
 
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
   if (!pergunta || pergunta.trim().length < 3) {
     return NextResponse.json({ error: 'Pergunta muito curta.' }, { status: 400 });
   }
-  if (recordingId && !/^[0-9a-f-]{36}$/i.test(recordingId)) {
+  if (recordingId && !ehUuid(recordingId)) {
     return NextResponse.json({ error: 'Requisição inválida.' }, { status: 400 });
   }
 

@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import { AtaContent, buildWebhookPayload } from '@talkin/core';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient, hasServiceRole } from '@/lib/supabase/admin';
+import { ehUuid } from '@/lib/uuid';
 
 export const maxDuration = 30;
 
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
   if (!hasServiceRole()) return NextResponse.json({ error: 'Indisponível.' }, { status: 503 });
 
   const { recordingId } = (await request.json().catch(() => ({}))) as { recordingId?: string };
-  if (!recordingId || !/^[0-9a-f-]{36}$/i.test(recordingId)) {
+  if (!ehUuid(recordingId)) {
     return NextResponse.json({ error: 'Requisição inválida.' }, { status: 400 });
   }
 
@@ -132,10 +133,17 @@ export async function POST(request: Request) {
     .eq('organization_id', rec.organization_id)
     .maybeSingle();
   const secret = (sec?.webhook_secret as string | undefined) ?? '';
+  // Nunca envia payload de reunião sem assinatura: exige o segredo configurado.
+  if (!secret) {
+    return NextResponse.json(
+      { error: 'Configure o segredo do webhook antes de enviar (assinatura obrigatória).' },
+      { status: 400 },
+    );
+  }
 
   const payload = buildWebhookPayload(rec.id, rec.title ?? '', parsed.data, true);
   const body = JSON.stringify(payload);
-  const assinatura = secret ? createHmac('sha256', secret).update(body).digest('hex') : '';
+  const assinatura = createHmac('sha256', secret).update(body).digest('hex');
 
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 10_000); // timeout de 10 s
@@ -147,7 +155,7 @@ export async function POST(request: Request) {
       dispatcher: safeAgent, // pina a conexão ao IP validado (anti DNS rebinding)
       headers: {
         'content-type': 'application/json',
-        ...(assinatura ? { 'x-talkin-signature': assinatura } : {}),
+        'x-talkin-signature': assinatura,
       },
       body,
     });

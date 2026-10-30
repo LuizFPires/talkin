@@ -3,6 +3,7 @@ import { processRecording, selectProviders } from '@talkin/pipeline';
 import { createSupabasePorts } from '@/lib/pipeline-ports';
 import { createAdminClient, hasServiceRole } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import { ehUuid } from '@/lib/uuid';
 
 export const maxDuration = 300;
 
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
   }
 
   const { recordingId } = (await request.json().catch(() => ({}))) as { recordingId?: string };
-  if (!recordingId || !/^[0-9a-f-]{36}$/i.test(recordingId)) {
+  if (!ehUuid(recordingId)) {
     return NextResponse.json({ error: 'Requisição inválida.' }, { status: 400 });
   }
 

@@ -2,13 +2,14 @@ import { NextResponse } from 'next/server';
 import { AtaContent } from '@talkin/core';
 import { renderAtaPdf, type AtaDoc } from '@talkin/pdf';
 import { createClient } from '@/lib/supabase/server';
+import { ehUuid } from '@/lib/uuid';
 
 export const maxDuration = 120;
 
 /** Baixa a ata em PDF (Executiva). GET ?recordingId=... — respeita RLS do usuário. */
 export async function GET(request: Request) {
   const recordingId = new URL(request.url).searchParams.get('recordingId') ?? '';
-  if (!/^[0-9a-f-]{36}$/i.test(recordingId)) {
+  if (!ehUuid(recordingId)) {
     return NextResponse.json({ error: 'Requisição inválida.' }, { status: 400 });
   }
 
