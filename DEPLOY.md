@@ -21,16 +21,16 @@ Stack de produção: **Supabase** (Postgres + Auth + Storage + pgvector) + **Ver
 - **Install:** `pnpm install` · **Build:** `next build` (o `packageManager` fixa pnpm 11 via corepack).
 - Variáveis de ambiente (Project → Settings → Environment Variables) — **você cola os valores**:
 
-| Variável | Para quê | Obrigatória |
-|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase | sim |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase (cliente) | sim |
-| `SUPABASE_SERVICE_ROLE_KEY` | worker/rotas (pipeline, webhook, bot) | sim |
-| `NEXT_PUBLIC_APP_URL` | links/base | recomendado |
-| `DEEPGRAM_API_KEY` | transcrição (M1) | p/ transcrever |
-| `ANTHROPIC_API_KEY` (+ `ANTHROPIC_MODEL`) | ata/Pergunte | p/ ata e Pergunte |
-| `OPENAI_API_KEY` | embeddings (M5) | p/ busca por significado |
-| `RECALL_API_KEY` (+ `NEXT_PUBLIC_BOT_CENTS_PER_HOUR`) | bot de reunião (M8) | p/ bot |
+| Variável                                              | Para quê                              | Obrigatória              |
+| ----------------------------------------------------- | ------------------------------------- | ------------------------ |
+| `NEXT_PUBLIC_SUPABASE_URL`                            | Supabase                              | sim                      |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`                       | Supabase (cliente)                    | sim                      |
+| `SUPABASE_SERVICE_ROLE_KEY`                           | worker/rotas (pipeline, webhook, bot) | sim                      |
+| `NEXT_PUBLIC_APP_URL`                                 | links/base                            | recomendado              |
+| `DEEPGRAM_API_KEY`                                    | transcrição (M1)                      | p/ transcrever           |
+| `ANTHROPIC_API_KEY` (+ `ANTHROPIC_MODEL`)             | ata/Pergunte                          | p/ ata e Pergunte        |
+| `OPENAI_API_KEY`                                      | embeddings (M5)                       | p/ busca por significado |
+| `RECALL_API_KEY` (+ `NEXT_PUBLIC_BOT_CENTS_PER_HOUR`) | bot de reunião (M8)                   | p/ bot                   |
 
 > Sem as chaves de IA/transcrição o app sobe e navega; o pipeline usa mocks. Com as chaves, roda de verdade.
 
