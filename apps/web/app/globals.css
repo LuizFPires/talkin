@@ -41,6 +41,32 @@ body {
   }
 }
 
+/* Indicador de gravação (ponto vermelho pulsante — nunca gravar sem indicador). */
+.rec-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: recpulse 1.2s ease-in-out infinite;
+}
+@keyframes recpulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rec-dot {
+    animation: none;
+  }
+}
+
 /* ───────── Shell responsivo (desktop: sidebar · mobile: barra inferior) ───────── */
 .app-shell {
   display: flex;
