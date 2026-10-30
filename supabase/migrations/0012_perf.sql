@@ -1,6 +1,6 @@
 -- Talkin — ganhos rápidos de performance (revisão de performance).
--- Índices para os caminhos mais usados, gravação de embeddings em lote,
--- custo de IA atômico e mais recall na busca semântica (ivfflat.probes).
+-- Índices para os caminhos mais usados, gravação de embeddings em lote
+-- e custo de IA atômico.
 
 -- 1) Biblioteca/busca: filtro por organização + ordenação por data (índice parcial).
 create index if not exists recordings_org_created_idx
@@ -54,8 +54,8 @@ $$;
 revoke execute on function public.increment_ai_cost(uuid, int) from public;
 grant execute on function public.increment_ai_cost(uuid, int) to service_role;
 
--- 6) Busca semântica: varrer mais listas do ivfflat melhora o recall (default = 1).
---    O SET da função aplica só durante a chamada e reseta depois.
+-- 6) match_segments: mantém a definição (sem tuning de ivfflat.probes — o Supabase
+--    não permite setar esse parâmetro aqui, então fica no default). Idempotente.
 create or replace function public.match_segments(
   query_embedding vector(1536),
   match_count int default 20,
@@ -71,7 +71,6 @@ returns table (
 )
 language sql stable security definer
 set search_path = public
-set ivfflat.probes = 10
 as $$
   select r.id, r.title, s.start_ms, s.text,
          1 - (s.embedding <=> query_embedding) as similarity
