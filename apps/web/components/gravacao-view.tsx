@@ -160,7 +160,27 @@ export function GravacaoView({
       </header>
 
       {audioUrl && (
-        <audio ref={audioRef} src={audioUrl} controls style={{ width: '100%', marginBottom: 16 }} />
+        <audio
+          ref={audioRef}
+          src={audioUrl}
+          controls
+          preload="metadata"
+          style={{ width: '100%', marginBottom: 16 }}
+          onLoadedMetadata={(ev) => {
+            // Áudio do MediaRecorder (webm) não declara duração: o player mostra
+            // "--:--" e não deixa arrastar. Pular para o fim força o navegador a
+            // calcular a duração; depois volta ao início.
+            const a = ev.currentTarget;
+            if (a.duration === Infinity) {
+              const voltar = () => {
+                a.removeEventListener('timeupdate', voltar);
+                a.currentTime = 0;
+              };
+              a.addEventListener('timeupdate', voltar);
+              a.currentTime = 1e101;
+            }
+          }}
+        />
       )}
 
       <div

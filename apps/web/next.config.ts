@@ -11,7 +11,8 @@ const config: NextConfig = {
   // Pacotes do monorepo são TS puro (main → src); o Next transpila.
   transpilePackages: ['@talkin/ui', '@talkin/core', '@talkin/pipeline', '@talkin/pdf'],
   // playwright-core só roda no servidor (render do PDF); não empacotar no bundle.
-  serverExternalPackages: ['playwright-core'],
+  // Navegadores headless só no servidor: fora do bundle (Chromium serverless + drivers).
+  serverExternalPackages: ['playwright-core', 'puppeteer-core', '@sparticuz/chromium'],
 };
 
 export default config;
