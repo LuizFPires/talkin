@@ -57,17 +57,30 @@ export default async function BibliotecaPage() {
           <Rotulo>Biblioteca</Rotulo>
           <h1 style={{ fontSize: 24, margin: '4px 0 0', fontWeight: 600 }}>Gravações</h1>
         </div>
-        <Link
-          href="/importar"
-          style={{
-            fontSize: 13,
-            color: 'var(--text-secondary)',
-            textDecoration: 'none',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          Importar áudio
-        </Link>
+        <div style={{ display: 'flex', gap: 16 }}>
+          <Link
+            href="/importar"
+            style={{
+              fontSize: 13,
+              color: 'var(--text-secondary)',
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Importar áudio
+          </Link>
+          <Link
+            href="/lixeira"
+            style={{
+              fontSize: 13,
+              color: 'var(--text-secondary)',
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Lixeira
+          </Link>
+        </div>
       </header>
 
       {/* Ação principal: gravar. Grande e óbvio — é o que o app faz primeiro. */}
