@@ -268,8 +268,8 @@ export default function GravarPage() {
           body: JSON.stringify({ recordingId: e.recordingId, segments: lote }),
         });
         if (!res.ok) {
-          const b = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(`HTTP ${res.status} ${b.error ?? ''}`.trim());
+          const b = (await res.json().catch(() => ({}))) as { error?: string; detalhe?: string };
+          throw new Error(`HTTP ${res.status} ${b.detalhe ?? b.error ?? ''}`.trim());
         }
         setSalvos((n) => n + lote.length);
         if (e.ultimoErroFlush) {

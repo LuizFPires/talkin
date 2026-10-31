@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createAdminClient, hasServiceRole } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { ehUuid } from '@/lib/uuid';
 
@@ -33,11 +34,18 @@ function validar(body: unknown): { recordingId: string; segments: SegIn[] } | nu
   return { recordingId: b.recordingId, segments: out };
 }
 
+/** Erro de banco sem conteúdo: código + mensagem curta (para a tela e o suporte). */
+function falha(etapa: string, err: { code?: string; message?: string } | null, status = 500) {
+  const detalhe = `${etapa}: ${err?.code ?? ''} ${err?.message ?? 'sem retorno'}`.trim();
+  return NextResponse.json({ error: 'Não foi possível salvar.', detalhe }, { status });
+}
+
 /**
  * Persiste trechos finais da transcrição AO VIVO (Deepgram Live) em lotes.
- * Usa a sessão do usuário: a RLS (can_modify_recording) garante que só o dono
- * grava. Cria o transcript (provider deepgram-live) e os falantes sob demanda,
- * no formato que o pipeline já lê (getSegments → regenerateSummary).
+ * Autoriza pela sessão (can_modify_recording + gravação em captura) e, como as
+ * rotas irmãs, escreve com service role depois disso — assim a gravação não
+ * depende de sutilezas de RLS no RETURNING. Cria o transcript (provider
+ * deepgram-live) e os falantes sob demanda, no formato que o pipeline já lê.
  */
 export async function POST(request: Request) {
   const parsed = validar(await request.json().catch(() => null));
@@ -50,9 +58,10 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
 
-  // Espelha as rotas irmãs: autoriza explicitamente e só aceita gravação em captura
-  // (a RLS já protege, mas isso dá 404/409 claros e evita anexar trechos a uma ata pronta).
-  const { data: canModify } = await supabase.rpc('can_modify_recording', { rec: recordingId });
+  const { data: canModify, error: errPerm } = await supabase.rpc('can_modify_recording', {
+    rec: recordingId,
+  });
+  if (errPerm) return falha('permissão', errPerm);
   if (!canModify) return NextResponse.json({ error: 'Não encontrado.' }, { status: 404 });
   const { data: rec } = await supabase
     .from('recordings')
@@ -60,11 +69,17 @@ export async function POST(request: Request) {
     .eq('id', recordingId)
     .maybeSingle();
   if (!rec || !['gravando', 'enviando'].includes(rec.status as string)) {
-    return NextResponse.json({ error: 'Gravação não está em captura.' }, { status: 409 });
+    return NextResponse.json(
+      { error: 'Gravação não está em captura.', detalhe: `status ${rec?.status ?? 'nulo'}` },
+      { status: 409 },
+    );
   }
 
+  // Autorizado: escreve com service role (ou com a sessão, no modo só-código).
+  const db = hasServiceRole() ? createAdminClient() : supabase;
+
   // Transcript da gravação (um só para a sessão ao vivo).
-  const { data: existente } = await supabase
+  const { data: existente, error: errBusca } = await db
     .from('transcripts')
     .select('id')
     .eq('recording_id', recordingId)
@@ -72,34 +87,36 @@ export async function POST(request: Request) {
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (errBusca) return falha('buscar transcrição', errBusca);
   let transcriptId = existente?.id as string | undefined;
   if (!transcriptId) {
-    const { data: novo, error } = await supabase
+    const { data: novo, error } = await db
       .from('transcripts')
       .insert({ recording_id: recordingId, language: 'pt-BR', provider: 'deepgram-live' })
       .select('id')
       .single();
-    if (error || !novo) return NextResponse.json({ error: 'Não encontrado.' }, { status: 404 });
+    if (error || !novo) return falha('criar transcrição', error);
     transcriptId = novo.id as string;
   }
 
   // Falantes: "Falante N" por índice do diarizador; cria os que faltam.
   const labels = [...new Set(segments.map((s) => `Falante ${s.speaker + 1}`))];
-  const { data: atuais } = await supabase
+  const { data: atuais, error: errFal } = await db
     .from('speakers')
     .select('id, label')
     .eq('recording_id', recordingId);
+  if (errFal) return falha('buscar falantes', errFal);
   const idPorLabel = new Map<string, string>(
     ((atuais as { id: string; label: string }[] | null) ?? []).map((r) => [r.label, r.id]),
   );
   for (const label of labels) {
     if (idPorLabel.has(label)) continue;
-    const { data: sp, error } = await supabase
+    const { data: sp, error } = await db
       .from('speakers')
       .insert({ recording_id: recordingId, label, track: 'desconhecido' })
       .select('id')
       .single();
-    if (error || !sp) return NextResponse.json({ error: 'Não encontrado.' }, { status: 404 });
+    if (error || !sp) return falha('criar falante', error);
     idPorLabel.set(label, sp.id as string);
   }
 
@@ -110,8 +127,8 @@ export async function POST(request: Request) {
     end_ms: Math.round(s.endMs),
     text: s.text,
   }));
-  const { error } = await supabase.from('segments').insert(linhas);
-  if (error) return NextResponse.json({ error: 'Não foi possível salvar.' }, { status: 400 });
+  const { error } = await db.from('segments').insert(linhas);
+  if (error) return falha('salvar trechos', error);
 
   return NextResponse.json({ ok: true, salvos: linhas.length });
 }
