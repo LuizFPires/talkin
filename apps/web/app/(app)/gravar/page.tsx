@@ -6,6 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { isSupabaseConfigured } from '@/lib/supabase/env';
 import { Card, Rotulo } from '@talkin/ui';
+import { GerandoAta, type EtapaFinal } from '@/components/gerando-ata';
 
 type Fase = 'idle' | 'gravando' | 'finalizando';
 
@@ -31,6 +32,9 @@ type Estado = {
   flushing: Promise<void>;
   acumuladoMs: number; // tempo já gravado (exclui pausas)
   inicioSegmento: number;
+  audioCtx?: AudioContext; // medidor de nível (só para a onda da tela de espera)
+  nivelTimer?: ReturnType<typeof setInterval>;
+  niveis: number[]; // RMS 0–1 a cada ~400 ms, nunca sai do navegador
 };
 
 const LIVE_PARAMS = new URLSearchParams({
@@ -99,6 +103,48 @@ function agruparPorFalante(words: PalavraDG[]): Trecho[] {
   return out;
 }
 
+/**
+ * Mede o nível (RMS) do microfone a cada ~400 ms, só para desenhar a onda da
+ * tela de espera. Fica no navegador; nada é enviado nem registrado.
+ */
+function iniciarMedidor(e: Estado, stream: MediaStream) {
+  try {
+    const Ctx = window.AudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const src = ctx.createMediaStreamSource(stream);
+    const an = ctx.createAnalyser();
+    an.fftSize = 1024;
+    src.connect(an);
+    const buf = new Uint8Array(an.fftSize);
+    e.audioCtx = ctx;
+    e.nivelTimer = setInterval(() => {
+      if (e.rec?.state !== 'recording') return; // pausado: não amostra
+      an.getByteTimeDomainData(buf);
+      let soma = 0;
+      for (let i = 0; i < buf.length; i++) {
+        const v = (buf[i] - 128) / 128;
+        soma += v * v;
+      }
+      e.niveis.push(Math.min(1, Math.sqrt(soma / buf.length) * 3));
+      if (e.niveis.length > 36000) e.niveis.shift(); // 4 h no máximo
+    }, 400);
+  } catch {
+    // sem medidor: a onda usa a presença de fala dos trechos
+  }
+}
+
+function pararMedidor(e: Estado) {
+  if (e.nivelTimer) clearInterval(e.nivelTimer);
+  e.nivelTimer = undefined;
+  try {
+    void e.audioCtx?.close();
+  } catch {
+    // ignora
+  }
+  e.audioCtx = undefined;
+}
+
 export default function GravarPage() {
   const router = useRouter();
   const configurado = isSupabaseConfigured();
@@ -116,6 +162,10 @@ export default function GravarPage() {
   const [parcial, setParcial] = useState('');
   const [salvos, setSalvos] = useState(0);
   const [etapaFinal, setEtapaFinal] = useState('Finalizando…');
+  const [etapaIdx, setEtapaIdx] = useState<EtapaFinal>(0);
+  const [pronto, setPronto] = useState(false);
+  const [duracaoMs, setDuracaoMs] = useState(0);
+  const [niveis, setNiveis] = useState<number[]>([]);
   const painelRef = useRef<HTMLDivElement | null>(null);
 
   const est = useRef<Estado>({
@@ -128,6 +178,7 @@ export default function GravarPage() {
     flushing: Promise.resolve(),
     acumuladoMs: 0,
     inicioSegmento: 0,
+    niveis: [],
   });
 
   // Para tudo ao sair da tela (não deixa microfone nem socket abertos).
@@ -137,6 +188,7 @@ export default function GravarPage() {
       if (e.timer) clearInterval(e.timer);
       if (e.flushTimer) clearInterval(e.flushTimer);
       if (e.keepAlive) clearInterval(e.keepAlive);
+      pararMedidor(e);
       for (const r of [e.rec, e.recLive]) {
         try {
           if (r && r.state !== 'inactive') r.stop();
@@ -358,6 +410,12 @@ export default function GravarPage() {
       e.wsTentativas = 0;
       e.acumuladoMs = 0;
       e.inicioSegmento = Date.now();
+      e.niveis = [];
+      setPronto(false);
+      setEtapaIdx(0);
+      setNiveis([]);
+      setDuracaoMs(0);
+      iniciarMedidor(e, stream);
       setEnviados(0);
       setTotal(0);
       setSegundos(0);
@@ -443,6 +501,12 @@ export default function GravarPage() {
   async function parar() {
     const e = est.current;
     if (!e.rec || !e.recordingId) return;
+    // Dados da tela de espera, congelados neste instante (ficam só no navegador).
+    setDuracaoMs(Math.max(posMs(), 1000));
+    setNiveis(e.niveis.slice());
+    pararMedidor(e);
+    setPronto(false);
+    setEtapaIdx(0);
     setFase('finalizando');
     setEtapaFinal('Encerrando a gravação…');
     if (e.timer) clearInterval(e.timer);
@@ -479,6 +543,7 @@ export default function GravarPage() {
       // ignora
     }
 
+    setEtapaIdx(1);
     setEtapaFinal('Enviando os últimos blocos…');
     try {
       await e.cadeia;
@@ -498,6 +563,7 @@ export default function GravarPage() {
       }
       if (temTranscricaoAoVivo) {
         // Transcrição já está no banco: gera a ata agora (segundos), sem áudio/ffmpeg.
+        setEtapaIdx(2);
         setEtapaFinal('Gerando a ata…');
         await fetch('/api/ata/gerar', {
           method: 'POST',
@@ -506,6 +572,7 @@ export default function GravarPage() {
         });
       } else {
         // Sem transcrição ao vivo: caminho antigo (processa o áudio ao parar).
+        setEtapaIdx(2);
         setEtapaFinal('Processando o áudio…');
         await fetch('/api/process', {
           method: 'POST',
@@ -516,6 +583,9 @@ export default function GravarPage() {
     } catch {
       // A gravação já está salva; o processamento pode ser retomado na tela dela.
     }
+    // Fecha a trilha (100%) antes de trocar de tela.
+    setPronto(true);
+    await new Promise((r) => setTimeout(r, 700));
     router.push(`/gravacao/${e.recordingId}`);
     router.refresh();
   }
@@ -637,16 +707,15 @@ export default function GravarPage() {
         )}
 
         {fase === 'finalizando' && (
-          <div style={{ textAlign: 'center', margin: '20px 0' }}>
-            <div
-              className="sk"
-              style={{ height: 6, width: 160, borderRadius: 3, margin: '0 auto 14px' }}
-            />
-            <p style={{ color: 'var(--text)', fontSize: 15, margin: 0 }}>{etapaFinal}</p>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 12, margin: '6px 0 0' }}>
-              A transcrição já está salva; a ata leva poucos segundos.
-            </p>
-          </div>
+          <GerandoAta
+            etapa={etapaIdx}
+            mensagem={etapaFinal}
+            pronto={pronto}
+            trechos={trechos}
+            momentosMs={momentos}
+            duracaoMs={duracaoMs}
+            niveis={niveis}
+          />
         )}
 
         {aviso && !erro && (

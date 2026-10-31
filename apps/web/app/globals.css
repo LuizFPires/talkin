@@ -180,3 +180,110 @@ body {
     color: var(--accent);
   }
 }
+
+/* ── Gerando a ata · "A Trilha" (components/gerando-ata.tsx) ── */
+.trilha-etapa {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--label, var(--text-secondary));
+  padding: 5px 4px;
+  border-radius: var(--radius-menu);
+  border: 1px solid transparent;
+}
+.trilha-etapa-ativa {
+  background: linear-gradient(180deg, #283334, #1b2728);
+  border-color: var(--border);
+}
+.trilha-pilula {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 3px 9px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.trilha-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+  transition: left 0.12s linear;
+}
+.trilha-momento {
+  position: absolute;
+  top: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translateX(-4px);
+}
+.trilha-secao {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 8px 10px;
+  border-radius: var(--radius-menu);
+  border: 1px solid transparent;
+  background: var(--bg);
+  transition:
+    border-color 0.3s,
+    color 0.3s;
+}
+.trilha-ponto {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  color: var(--on-accent);
+}
+.trilha-secao-indo {
+  color: var(--text);
+  border-color: var(--border);
+}
+.trilha-secao-indo .trilha-ponto {
+  border-color: var(--accent);
+  animation: trilha-pulso 1.1s ease-in-out infinite;
+}
+.trilha-secao-ok {
+  color: var(--text);
+}
+.trilha-secao-ok .trilha-ponto {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+@keyframes trilha-pulso {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .trilha-secao-indo .trilha-ponto {
+    animation: none;
+  }
+  .trilha-cursor {
+    transition: none;
+  }
+}
