@@ -52,6 +52,9 @@ function makePorts() {
         },
       ];
     },
+    async getLatestSummary() {
+      return state.summary;
+    },
     async saveSummary(_id, _tpl, content) {
       state.summary = content;
       return 's1';

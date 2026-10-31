@@ -1,16 +1,27 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
-import { ConfirmarExclusao } from '@/components/confirmar-exclusao';
 import { useRouter } from 'next/navigation';
+import { ConfirmarExclusao } from '@/components/confirmar-exclusao';
 import { createClient } from '@/lib/supabase/client';
 
+export type AcaoMenu = { label: string; descricao?: string; onClick: () => void };
+
 /**
- * Menu "⋯" da gravação. Hoje só tem "Excluir gravação", sempre com confirmação.
+ * Menu "⋯" da gravação: ações da tela (renomear, modelo, regenerar…) e, por
+ * último, "Excluir gravação", sempre com confirmação no centro da tela.
  * A exclusão é lógica (`deleted_at`, SPEC 24): a RLS só deixa o dono ou um
  * admin da empresa; biblioteca, busca e links já ignoram gravações excluídas.
  */
-export function MenuGravacao({ recordingId, titulo }: { recordingId: string; titulo: string }) {
+export function MenuGravacao({
+  recordingId,
+  titulo,
+  acoes = [],
+}: {
+  recordingId: string;
+  titulo: string;
+  acoes?: AcaoMenu[];
+}) {
   const [aberto, setAberto] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
@@ -80,6 +91,21 @@ export function MenuGravacao({ recordingId, titulo }: { recordingId: string; tit
 
       {aberto && (
         <div id={idMenu} role="menu" className="menu-gravacao">
+          {acoes.map((a) => (
+            <button
+              key={a.label}
+              type="button"
+              role="menuitem"
+              className="menu-gravacao-item"
+              onClick={() => {
+                setAberto(false);
+                a.onClick();
+              }}
+            >
+              {a.label}
+              {a.descricao && <small>{a.descricao}</small>}
+            </button>
+          ))}
           <button
             type="button"
             role="menuitem"

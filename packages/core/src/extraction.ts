@@ -64,10 +64,22 @@ export const AtaSecao = z.object({
 });
 export type AtaSecao = z.infer<typeof AtaSecao>;
 
+/**
+ * Estado da revisão guiada (SPEC 12): quais blocos o usuário conferiu (✓) e quais
+ * editou. Chaves: `resumo`, `secao:<key>`, `decisoes`, `pendencias`, `valores`.
+ * Blocos editados são preservados quando a ata é regenerada.
+ */
+export const Revisao = z.object({
+  conferidas: z.array(z.string()).default([]),
+  editadas: z.array(z.string()).default([]),
+});
+export type Revisao = z.infer<typeof Revisao>;
+
 /** Conteúdo da ata salvo em summaries.content. */
 export const AtaContent = z.object({
   resumo: z.string().default(''),
   secoes: z.array(AtaSecao).default([]),
   extracao: Extracao,
+  revisao: Revisao.default({ conferidas: [], editadas: [] }),
 });
 export type AtaContent = z.infer<typeof AtaContent>;

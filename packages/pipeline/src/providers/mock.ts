@@ -45,6 +45,7 @@ export class MockAtaProvider implements AtaProvider {
     return {
       costCents: 0,
       content: {
+        revisao: { conferidas: [], editadas: [] },
         resumo: 'Reunião tratou do prazo da estrutura e da concretagem do galpão.',
         secoes: [
           {

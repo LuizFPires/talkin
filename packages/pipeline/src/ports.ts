@@ -30,6 +30,9 @@ export interface PipelinePorts {
   /** Trechos já transcritos (para regenerar a ata sem re-transcrever). */
   getSegments(recordingId: string): Promise<TranscriptSegment[]>;
 
+  /** Ata atual (para preservar os blocos editados pelo usuário ao regenerar). */
+  getLatestSummary(recordingId: string): Promise<AtaContent | null>;
+
   saveSummary(recordingId: string, templateId: string | null, content: AtaContent): Promise<string>;
 
   saveActionItems(recordingId: string, summaryId: string, content: AtaContent): Promise<void>;
