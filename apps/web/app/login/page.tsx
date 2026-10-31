@@ -60,7 +60,7 @@ export default function LoginPage() {
         return;
       }
       // Confirmação desligada: a sessão já veio, segue direto.
-      router.push('/biblioteca');
+      router.push('/gravar');
       router.refresh();
       return;
     }
@@ -71,7 +71,7 @@ export default function LoginPage() {
       setErro(error.message);
       return;
     }
-    router.push('/biblioteca');
+    router.push('/gravar');
     router.refresh();
   }
 

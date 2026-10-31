@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, extname } from 'node:path';
 import type { PipelinePorts } from '@talkin/pipeline';
 import { concatAndNormalize, concatRaw, semFfmpeg } from '@talkin/pipeline';
-import type { AtaContent, TranscriptionResult } from '@talkin/core';
+import { AtaContent, type TranscriptionResult } from '@talkin/core';
 import { createAdminClient } from './supabase/admin';
 import { toVectorLiteral } from './pergunte';
 
@@ -172,6 +172,18 @@ export function createSupabasePorts(): PipelinePorts {
         .single();
       const projectName = (rec?.projects as { name?: string } | null)?.name;
       return projectName ? { projectName } : undefined;
+    },
+
+    async getLatestSummary(recordingId) {
+      const { data } = await db
+        .from('summaries')
+        .select('content')
+        .eq('recording_id', recordingId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const parsed = data?.content ? AtaContent.safeParse(data.content) : null;
+      return parsed?.success ? parsed.data : null;
     },
 
     async saveSummary(recordingId, templateId, content: AtaContent) {

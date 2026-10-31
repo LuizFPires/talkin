@@ -1,21 +1,26 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   type AtaContent,
-  formatBRL,
+  type EdicaoBloco,
+  aplicarEdicao,
+  chavesComConteudo,
   formatDateBR,
   formatMinute,
+  marcarConferida,
   type RecordingStatus,
 } from '@talkin/core';
 import { Card, Pilula, Rotulo, ToggleSegmentado } from '@talkin/ui';
 import { StatusBadge } from './status-badge';
-import { MenuGravacao } from './menu-gravacao';
+import { MenuGravacao, type AcaoMenu } from './menu-gravacao';
+import { RevisaoAta } from './revisao-ata';
 import { createClient } from '@/lib/supabase/client';
 
 type Seg = { startMs: number; endMs: number; text: string; falante: string };
 type Template = { id: string; key: string; name: string };
+type StatusAta = 'rascunho' | 'revisada';
 
 /** Texto formatado para colar no WhatsApp (SPEC 18). */
 function textoWhatsapp(titulo: string, ata: AtaContent): string {
@@ -37,10 +42,14 @@ function textoWhatsapp(titulo: string, ata: AtaContent): string {
 
 export function GravacaoView({
   recordingId,
-  titulo,
+  titulo: tituloInicial,
   status,
   criadoEm,
-  ata,
+  duracaoS,
+  ata: ataInicial,
+  statusAta: statusAtaInicial,
+  podeEditar,
+  temWebhook,
   segments,
   audioUrl,
   templates,
@@ -51,7 +60,13 @@ export function GravacaoView({
   titulo: string;
   status: RecordingStatus;
   criadoEm: string;
+  duracaoS: number | null;
   ata: AtaContent | null;
+  statusAta: StatusAta | null;
+  /** Dono/admin/gestor: pode revisar, editar, renomear e excluir. */
+  podeEditar: boolean;
+  /** A empresa tem webhook (ioo) configurado: ao concluir a revisão, envia. */
+  temWebhook: boolean;
   segments: Seg[];
   audioUrl: string | null;
   templates: Template[];
@@ -61,32 +76,182 @@ export function GravacaoView({
 }) {
   const router = useRouter();
   const [aba, setAba] = useState('ata');
+  const [ata, setAta] = useState<AtaContent | null>(ataInicial);
+  const [statusAta, setStatusAta] = useState<StatusAta | null>(statusAtaInicial);
+  const [reaberta, setReaberta] = useState(false);
+  const [concluindo, setConcluindo] = useState(false);
+  const [etapaInfo, setEtapaInfo] = useState<'gravada' | 'revisar' | 'salva' | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [titulo, setTitulo] = useState(tituloInicial);
+  const [editandoTitulo, setEditandoTitulo] = useState(false);
+  const [rascunhoTitulo, setRascunhoTitulo] = useState(tituloInicial);
+  const [modeloAberto, setModeloAberto] = useState(false);
   const [modelo, setModelo] = useState(templateId ?? '');
   const [regenerando, setRegenerando] = useState(false);
-  const [aviso, setAviso] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const tituloRef = useRef<HTMLInputElement>(null);
 
-  async function regenerar() {
+  // Props novas (router.refresh após regenerar/renomear) sincronizam o estado local.
+  useEffect(() => setAta(ataInicial), [ataInicial]);
+  useEffect(() => setStatusAta(statusAtaInicial), [statusAtaInicial]);
+  useEffect(() => {
+    setTitulo(tituloInicial);
+    setRascunhoTitulo(tituloInicial);
+  }, [tituloInicial]);
+  useEffect(() => {
+    if (editandoTitulo) tituloRef.current?.select();
+  }, [editandoTitulo]);
+
+  // Avisos somem sozinhos.
+  useEffect(() => {
+    if (!aviso) return;
+    const t = setTimeout(() => setAviso(null), 3500);
+    return () => clearTimeout(t);
+  }, [aviso]);
+
+  const revisada = statusAta === 'revisada';
+  const salva = revisada && !reaberta;
+  const chaves = ata ? chavesComConteudo(ata) : [];
+  const conferidas = ata ? chaves.filter((c) => ata.revisao.conferidas.includes(c)).length : 0;
+
+  // ───────────────────────────── título ─────────────────────────────
+
+  async function salvarTitulo() {
+    const t = rascunhoTitulo.trim();
+    setEditandoTitulo(false);
+    if (!t || t === titulo) {
+      setRascunhoTitulo(titulo);
+      return;
+    }
+    const { data, error } = await createClient()
+      .from('recordings')
+      .update({ title: t })
+      .eq('id', recordingId)
+      .select('id');
+    if (error || !data?.length) {
+      setRascunhoTitulo(titulo);
+      setAviso('Não foi possível renomear. Só quem gravou ou um admin pode.');
+      return;
+    }
+    setTitulo(t);
+    setAviso('Título salvo.');
+    router.refresh();
+  }
+
+  // ───────────────────────────── revisão ─────────────────────────────
+
+  async function chamarRevisar(body: Record<string, unknown>): Promise<boolean> {
+    const res = await fetch('/api/ata/revisar', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ recordingId, ...body }),
+    });
+    if (!res.ok) {
+      const b = (await res.json().catch(() => ({}))) as { error?: string };
+      setAviso(b.error ?? 'Não foi possível salvar.');
+      return false;
+    }
+    return true;
+  }
+
+  async function onConferir(chave: string, ok: boolean) {
+    if (!ata) return;
+    const antes = ata;
+    setAta(marcarConferida(ata, chave, ok)); // otimista
+    if (!(await chamarRevisar({ acao: 'conferir', chave, ok }))) setAta(antes);
+    else if (salva) setReaberta(true);
+  }
+
+  async function onEditar(edicao: EdicaoBloco) {
+    if (!ata) return;
+    const antes = ata;
+    const depois = aplicarEdicao(ata, edicao);
+    setAta(depois);
+    if (!(await chamarRevisar({ acao: 'editar', edicao }))) {
+      setAta(antes);
+      throw new Error('falha ao salvar');
+    }
+    setAviso('Seção salva · editada por você.');
+    if (salva) setReaberta(true);
+  }
+
+  async function concluir() {
+    if (!ata || concluindo) return;
+    setConcluindo(true);
+    try {
+      if (reaberta && revisada) {
+        // Já é Revisada: as edições foram salvas seção a seção.
+        setReaberta(false);
+        setAviso('Alterações salvas.');
+        return;
+      }
+      if (!(await chamarRevisar({ acao: 'concluir' }))) return;
+      setStatusAta('revisada');
+      setReaberta(false);
+      setAta({
+        ...ata,
+        revisao: { ...ata.revisao, conferidas: chaves },
+      });
+      setEtapaInfo(null);
+      setAviso('Revisão concluída · ata salva como Revisada.');
+      if (temWebhook) void enviarIoo(true);
+      router.refresh();
+    } finally {
+      setConcluindo(false);
+    }
+  }
+
+  async function enviarIoo(automatico = false) {
+    const res = await fetch('/api/integracoes/enviar', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ recordingId }),
+    });
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    setAviso(
+      res.ok
+        ? automatico
+          ? 'Ata salva e enviada ao ioo.'
+          : 'Enviado ao ioo.'
+        : (body.error ?? 'Falha ao enviar ao ioo.'),
+    );
+  }
+
+  // ───────────────────────────── modelo / regenerar ─────────────────────────────
+
+  async function regenerar(templateIdNovo?: string | null) {
     setRegenerando(true);
     setAviso(null);
     const res = await fetch('/api/regenerate', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ recordingId, templateId: modelo || null }),
+      body: JSON.stringify(
+        templateIdNovo === undefined
+          ? { recordingId }
+          : { recordingId, templateId: templateIdNovo || null },
+      ),
     });
     setRegenerando(false);
+    setModeloAberto(false);
     if (!res.ok) {
       const b = (await res.json().catch(() => ({}))) as { error?: string };
       setAviso(b.error ?? 'Falha ao regenerar.');
       return;
     }
+    setAviso('Ata regenerada. As seções que você editou foram mantidas.');
     router.refresh();
   }
 
+  // ───────────────────────────── saídas ─────────────────────────────
+
   async function copiarWhatsapp() {
     if (!ata) return;
-    await navigator.clipboard.writeText(textoWhatsapp(titulo, ata));
-    setAviso('Texto copiado para o WhatsApp.');
+    try {
+      await navigator.clipboard.writeText(textoWhatsapp(titulo, ata));
+      setAviso('Texto copiado para o WhatsApp.');
+    } catch {
+      setAviso('Não consegui copiar. Tente de novo.');
+    }
   }
 
   function enviarEmail() {
@@ -119,6 +284,8 @@ export function GravacaoView({
     setAviso(`Link copiado (${dias ? `${dias} dias` : 'sem expiração'}): ${url}`);
   }
 
+  // ───────────────────────────── player ─────────────────────────────
+
   function tocarEm(ms: number) {
     const a = audioRef.current;
     if (!a) return;
@@ -143,20 +310,170 @@ export function GravacaoView({
     </button>
   );
 
+  // ───────────────────────────── menu ⋯ ─────────────────────────────
+
+  const acoesMenu: AcaoMenu[] = podeEditar
+    ? [
+        {
+          label: 'Renomear reunião',
+          onClick: () => {
+            setRascunhoTitulo(titulo === 'Sem título' ? '' : titulo);
+            setEditandoTitulo(true);
+          },
+        },
+        ...(ata
+          ? [
+              {
+                label: 'Modelo da ata',
+                descricao: templates.find((t) => t.id === (templateId ?? ''))?.name
+                  ? `${templates.find((t) => t.id === templateId)!.name} · trocar regenera`
+                  : 'trocar regenera as seções não editadas',
+                onClick: () => setModeloAberto(true),
+              },
+              {
+                label: regenerando ? 'Regenerando…' : 'Regenerar ata',
+                descricao: 'Mantém o que você editou',
+                onClick: () => void regenerar(),
+              },
+            ]
+          : []),
+        ...(revisada && temWebhook
+          ? [{ label: 'Reenviar ao ioo', onClick: () => void enviarIoo() }]
+          : []),
+      ]
+    : [];
+
+  const infoEtapa: Record<'gravada' | 'revisar' | 'salva', React.ReactNode> = {
+    gravada: (
+      <>
+        <strong>Gravada em {formatDateBR(criadoEm)}</strong>
+        {duracaoS ? ` · ${Math.max(1, Math.round(duracaoS / 60))} min` : ''}. Áudio, transcrição e
+        ata já estão salvos. Nada a fazer nesta etapa.
+      </>
+    ),
+    revisar: (
+      <>
+        <strong>Você está aqui.</strong> Leia cada seção e marque ✓. Para corrigir, toque em ✎
+        Editar na seção. Quando terminar, Concluir revisão.
+      </>
+    ),
+    salva: salva ? (
+      <>
+        <strong>Ata revisada e salva.</strong> As saídas estão liberadas no rodapé. Precisa mudar
+        algo? Toque em Editar de novo.
+      </>
+    ) : (
+      <>
+        Fica disponível depois de concluir a revisão. Aí a ata vira <strong>Revisada</strong> e
+        liberam as saídas (WhatsApp, PDF, DOCX, e-mail, link).
+      </>
+    ),
+  };
+
+  const gravadaOk = status === 'pronto' || Boolean(ata);
+  const revisarAtual = Boolean(ata) && !salva;
+
+  // ───────────────────────────── UI ─────────────────────────────
+
   return (
-    <div style={{ maxWidth: 820, margin: '0 auto', padding: '8px 4px 60px' }}>
-      <header style={{ marginBottom: 16 }}>
-        <Rotulo>Gravação</Rotulo>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
-          <h1 style={{ fontSize: 24, margin: 0, fontWeight: 600, flex: 1, minWidth: 0 }}>
-            {titulo}
-          </h1>
-          <StatusBadge status={status} />
-          <MenuGravacao recordingId={recordingId} titulo={titulo} />
+    <div className="rev-pagina">
+      <header className="rev-cabecalho">
+        <Rotulo>Reunião · {formatDateBR(criadoEm)}</Rotulo>
+
+        {/* Etapas: estado da reunião, não navegação. Tocar explica. */}
+        {ata && (
+          <div className="rev-passos" role="group" aria-label="Etapas da reunião">
+            <button
+              type="button"
+              className={`${gravadaOk ? 'feito' : ''}${etapaInfo === 'gravada' ? ' sel' : ''}`}
+              onClick={() => setEtapaInfo(etapaInfo === 'gravada' ? null : 'gravada')}
+            >
+              <span className="b" />
+              Gravada
+            </button>
+            <i className={gravadaOk ? 'feito' : ''} />
+            <button
+              type="button"
+              className={`${salva ? 'feito' : revisarAtual ? 'atual' : ''}${etapaInfo === 'revisar' ? ' sel' : ''}`}
+              onClick={() => setEtapaInfo(etapaInfo === 'revisar' ? null : 'revisar')}
+            >
+              <span className="b" />
+              {salva ? 'Revisada' : 'Revisar'}
+            </button>
+            <i className={salva ? 'feito' : ''} />
+            <button
+              type="button"
+              className={`${salva ? 'feito atual' : ''}${etapaInfo === 'salva' ? ' sel' : ''}`}
+              onClick={() => setEtapaInfo(etapaInfo === 'salva' ? null : 'salva')}
+            >
+              <span className="b" />
+              Salva
+            </button>
+          </div>
+        )}
+        {etapaInfo && <div className="rev-etapa-info">{infoEtapa[etapaInfo]}</div>}
+
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+          {editandoTitulo ? (
+            <input
+              ref={tituloRef}
+              className="rev-titulo-input"
+              value={rascunhoTitulo}
+              placeholder="Dê um nome à reunião"
+              onChange={(e) => setRascunhoTitulo(e.target.value)}
+              onBlur={() => void salvarTitulo()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                if (e.key === 'Escape') {
+                  setRascunhoTitulo(titulo);
+                  setEditandoTitulo(false);
+                }
+              }}
+              aria-label="Título da reunião"
+            />
+          ) : (
+            <h1
+              className={`rev-titulo${podeEditar ? ' editavel' : ''}${titulo === 'Sem título' ? ' vazio' : ''}`}
+              onClick={() => {
+                if (!podeEditar) return;
+                setRascunhoTitulo(titulo === 'Sem título' ? '' : titulo);
+                setEditandoTitulo(true);
+              }}
+              title={podeEditar ? 'Toque para renomear' : undefined}
+            >
+              {titulo === 'Sem título' && podeEditar ? 'Sem título — toque para nomear' : titulo}
+            </h1>
+          )}
+          {podeEditar && !editandoTitulo && (
+            <button
+              type="button"
+              className="rev-redondo"
+              aria-label="Renomear reunião"
+              onClick={() => {
+                setRascunhoTitulo(titulo === 'Sem título' ? '' : titulo);
+                setEditandoTitulo(true);
+              }}
+            >
+              ✎
+            </button>
+          )}
+          <MenuGravacao recordingId={recordingId} titulo={titulo} acoes={acoesMenu} />
         </div>
-        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-          {formatDateBR(criadoEm)}
-        </span>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <StatusBadge status={status} />
+          {statusAta && (
+            <span className={`rev-status ${revisada ? 'ok' : 'aviso'}`}>
+              <i />
+              {revisada ? (reaberta ? 'Revisada · editando' : 'Revisada') : 'Rascunho'}
+            </span>
+          )}
+          {duracaoS ? (
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              {Math.max(1, Math.round(duracaoS / 60))} min
+            </span>
+          ) : null}
+        </div>
       </header>
 
       {audioUrl && (
@@ -183,71 +500,6 @@ export function GravacaoView({
         />
       )}
 
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          gap: 8,
-          marginBottom: 16,
-        }}
-      >
-        <select
-          value={modelo}
-          onChange={(e) => setModelo(e.target.value)}
-          aria-label="Modelo de ata"
-          style={{
-            padding: '8px 12px',
-            borderRadius: 'var(--radius-pill)',
-            border: '1px solid var(--border)',
-            background: 'var(--card)',
-            color: 'var(--text)',
-            fontSize: 13,
-          }}
-        >
-          <option value="">Modelo…</option>
-          {templates.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={() => void regenerar()}
-          disabled={regenerando}
-          style={acaoBtn}
-        >
-          {regenerando ? 'Regenerando…' : 'Regenerar ata'}
-        </button>
-        <button type="button" onClick={() => void copiarWhatsapp()} disabled={!ata} style={acaoBtn}>
-          Copiar p/ WhatsApp
-        </button>
-        <a
-          href={`/api/pdf?recordingId=${recordingId}`}
-          style={{ ...acaoBtn, textDecoration: 'none' }}
-        >
-          Baixar PDF
-        </a>
-        <a
-          href={`/api/docx?recordingId=${recordingId}`}
-          style={{ ...acaoBtn, textDecoration: 'none' }}
-        >
-          Baixar DOCX
-        </a>
-        <button type="button" onClick={enviarEmail} disabled={!ata} style={acaoBtn}>
-          E-mail
-        </button>
-        <button type="button" onClick={() => void criarLink(30)} style={acaoBtn}>
-          Link privado
-        </button>
-        {aviso && (
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
-            {aviso}
-          </span>
-        )}
-      </div>
-
       <div style={{ marginBottom: 16 }}>
         <ToggleSegmentado
           value={aba}
@@ -260,16 +512,194 @@ export function GravacaoView({
         />
       </div>
 
-      {aba === 'ata' && (
-        <AbaAta
-          ata={ata}
-          MinutoPill={MinutoPill}
-          erro={status === 'erro' ? (erroProcessamento ?? 'motivo não registrado') : null}
-        />
-      )}
+      {aba === 'ata' &&
+        (ata ? (
+          <RevisaoAta
+            ata={ata}
+            MinutoPill={MinutoPill}
+            bloqueada={!podeEditar}
+            onConferir={onConferir}
+            onEditar={onEditar}
+          />
+        ) : (
+          <SemAta
+            erro={status === 'erro' ? (erroProcessamento ?? 'motivo não registrado') : null}
+            onRegenerar={podeEditar ? () => void regenerar() : undefined}
+            regenerando={regenerando}
+          />
+        ))}
       {aba === 'transcricao' && <AbaTranscricao segments={segments} MinutoPill={MinutoPill} />}
       {aba === 'pergunte' && <AbaPergunte recordingId={recordingId} MinutoPill={MinutoPill} />}
+
+      {/* Rodapé da revisão: um botão só, que muda de nome conforme o momento. */}
+      {ata && podeEditar && aba === 'ata' && (
+        <div className="rev-rodape">
+          {salva && (
+            <div className="rev-saidas">
+              <button type="button" className="rev-saida" onClick={() => void copiarWhatsapp()}>
+                <span className="i">WA</span>WhatsApp
+              </button>
+              <a
+                className="rev-saida"
+                href={`/api/pdf?recordingId=${recordingId}`}
+                target="_blank"
+                rel="noopener"
+              >
+                <span className="i pdf">PDF</span>PDF
+              </a>
+              <a
+                className="rev-saida"
+                href={`/api/docx?recordingId=${recordingId}`}
+                target="_blank"
+                rel="noopener"
+              >
+                <span className="i">DOC</span>DOCX
+              </a>
+              <button type="button" className="rev-saida" onClick={enviarEmail}>
+                <span className="i">@</span>E-mail
+              </button>
+              <button type="button" className="rev-saida" onClick={() => void criarLink(30)}>
+                <span className="i">🔗</span>Link
+              </button>
+            </div>
+          )}
+          {!salva && (
+            <>
+              <div className="rev-prog">
+                <span
+                  style={{ width: `${chaves.length ? (conferidas / chaves.length) * 100 : 0}%` }}
+                />
+              </div>
+              <div className="rev-linha">
+                <span>
+                  {conferidas === chaves.length
+                    ? 'Tudo conferido. Pode concluir.'
+                    : `Confira as ${chaves.length} seções (ou toque em Concluir e conferimos todas)`}
+                </span>
+                <span>
+                  {conferidas}/{chaves.length}
+                </span>
+              </div>
+            </>
+          )}
+          {salva ? (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" className="rev-btn pri salvo" disabled style={{ flex: 1 }}>
+                ✓ Ata salva · Revisada
+              </button>
+              <button type="button" className="rev-btn" onClick={() => setReaberta(true)}>
+                Editar de novo
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="rev-btn pri grande"
+              onClick={() => void concluir()}
+              disabled={concluindo}
+            >
+              {concluindo ? 'Salvando…' : reaberta ? 'Salvar alterações' : 'Concluir revisão'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {aviso && (
+        <div className="rev-toast" role="status">
+          {aviso}
+        </div>
+      )}
+
+      {modeloAberto && (
+        <div className="confirmacao-fundo" onClick={() => !regenerando && setModeloAberto(false)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Modelo da ata"
+            className="confirmacao"
+            onClick={(ev) => ev.stopPropagation()}
+          >
+            <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>Modelo da ata</h2>
+            <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+              Trocar o modelo regenera a ata. As seções que você editou são mantidas.
+            </p>
+            <select
+              value={modelo}
+              onChange={(e) => setModelo(e.target.value)}
+              aria-label="Modelo de ata"
+              className="rev-select"
+              autoFocus
+            >
+              <option value="">Padrão (genérico)</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="confirmacao-cancelar"
+                onClick={() => setModeloAberto(false)}
+                disabled={regenerando}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="rev-btn pri"
+                onClick={() => void regenerar(modelo || null)}
+                disabled={regenerando}
+              >
+                {regenerando ? 'Regenerando…' : 'Regenerar com este modelo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function SemAta({
+  erro,
+  onRegenerar,
+  regenerando,
+}: {
+  erro: string | null;
+  onRegenerar?: () => void;
+  regenerando: boolean;
+}) {
+  return (
+    <Card>
+      {erro ? (
+        <>
+          <p style={{ color: 'var(--danger)', fontSize: 14, margin: 0, fontWeight: 600 }}>
+            A geração da ata falhou.
+          </p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '6px 0 0' }}>
+            Motivo: <code style={{ fontFamily: 'var(--font-mono)' }}>{erro}</code>. A gravação e a
+            transcrição estão salvas.
+          </p>
+          {onRegenerar && (
+            <button
+              type="button"
+              className="rev-btn pri"
+              style={{ marginTop: 12 }}
+              onClick={onRegenerar}
+              disabled={regenerando}
+            >
+              {regenerando ? 'Tentando…' : 'Tentar de novo'}
+            </button>
+          )}
+        </>
+      ) : (
+        <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: 0 }}>
+          Ata ainda não disponível. Ela aparece quando o processamento termina.
+        </p>
+      )}
+    </Card>
   );
 }
 
@@ -325,7 +755,7 @@ function AbaPergunte({
           type="button"
           onClick={() => void perguntar()}
           disabled={carregando}
-          style={acaoBtn}
+          className="rev-btn"
         >
           {carregando ? '…' : 'Perguntar'}
         </button>
@@ -344,109 +774,6 @@ function AbaPergunte({
         </div>
       )}
     </Card>
-  );
-}
-
-function AbaAta({
-  ata,
-  MinutoPill,
-  erro = null,
-}: {
-  ata: AtaContent | null;
-  MinutoPill: (p: { ms: number }) => React.ReactNode;
-  erro?: string | null;
-}) {
-  if (!ata) {
-    return (
-      <Card>
-        {erro ? (
-          <>
-            <p style={{ color: 'var(--danger)', fontSize: 14, margin: 0, fontWeight: 600 }}>
-              A geração da ata falhou.
-            </p>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '6px 0 0' }}>
-              Motivo: <code style={{ fontFamily: 'var(--font-mono)' }}>{erro}</code>. A gravação e a
-              transcrição estão salvas; use &ldquo;Regenerar ata&rdquo; para tentar de novo.
-            </p>
-          </>
-        ) : (
-          <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: 0 }}>
-            Ata ainda não disponível. Ela aparece quando o processamento termina.
-          </p>
-        )}
-      </Card>
-    );
-  }
-  const { extracao } = ata;
-  return (
-    <div style={{ display: 'grid', gap: 12 }}>
-      {ata.resumo && (
-        <Card>
-          <Rotulo>Resumo</Rotulo>
-          <p style={{ margin: '8px 0 0', fontSize: 15, lineHeight: 1.5 }}>{ata.resumo}</p>
-        </Card>
-      )}
-      {ata.secoes.map((s) => (
-        <Card key={s.key}>
-          <Rotulo>{s.title}</Rotulo>
-          <p style={{ margin: '8px 0 6px', fontSize: 15, lineHeight: 1.5 }}>{s.body}</p>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {s.minutos_ms.map((ms, i) => (
-              <MinutoPill key={i} ms={ms} />
-            ))}
-          </div>
-        </Card>
-      ))}
-
-      {extracao.decisoes.length > 0 && (
-        <Card>
-          <Rotulo>Decisões</Rotulo>
-          <ul style={lista}>
-            {extracao.decisoes.map((d, i) => (
-              <li key={i} style={item}>
-                <span>{d.texto}</span>
-                {d.minuto_ms !== null && <MinutoPill ms={d.minuto_ms} />}
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-
-      {extracao.pendencias.length > 0 && (
-        <Card>
-          <Rotulo>Pendências</Rotulo>
-          <ul style={lista}>
-            {extracao.pendencias.map((p, i) => (
-              <li key={i} style={item}>
-                <span>
-                  {p.texto} <Pilula>{p.responsavel ?? 'sem responsável'}</Pilula>
-                </span>
-                {p.minuto_ms !== null && <MinutoPill ms={p.minuto_ms} />}
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-
-      {extracao.valores.length > 0 && (
-        <Card>
-          <Rotulo>Valores</Rotulo>
-          <ul style={lista}>
-            {extracao.valores.map((v, i) => (
-              <li key={i} style={item}>
-                <span>
-                  {v.descricao} —{' '}
-                  {v.unidade === 'R$'
-                    ? formatBRL(v.valor)
-                    : `${v.valor.toLocaleString('pt-BR')} ${v.unidade}`}
-                </span>
-                {v.minuto_ms !== null && <MinutoPill ms={v.minuto_ms} />}
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-    </div>
   );
 }
 
@@ -474,34 +801,9 @@ function AbaTranscricao({
             <MinutoPill ms={s.startMs} />
             <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{s.falante}</span>
           </div>
-          <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5 }}>{s.text}</p>
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>{s.text}</p>
         </Card>
       ))}
     </div>
   );
 }
-
-const acaoBtn: React.CSSProperties = {
-  padding: '8px 14px',
-  borderRadius: 'var(--radius-pill)',
-  border: '1px solid var(--border)',
-  background: 'var(--card)',
-  color: 'var(--text)',
-  fontSize: 13,
-  cursor: 'pointer',
-};
-
-const lista: React.CSSProperties = {
-  listStyle: 'none',
-  padding: 0,
-  margin: '8px 0 0',
-  display: 'grid',
-  gap: 8,
-};
-const item: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  gap: 10,
-  alignItems: 'baseline',
-  fontSize: 14,
-};

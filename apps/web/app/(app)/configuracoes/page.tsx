@@ -86,6 +86,7 @@ export default function ConfiguracoesPage() {
         revisada: true,
       },
       ata: {
+        revisao: { conferidas: [], editadas: [] },
         resumo: 'Prévia da ata com os dados da sua empresa.',
         secoes: [{ key: 'resumo', title: 'Resumo', body: 'Exemplo de seção.', minutos_ms: [4000] }],
         extracao: {

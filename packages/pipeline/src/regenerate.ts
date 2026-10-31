@@ -1,4 +1,4 @@
-import { AtaContent } from '@talkin/core';
+import { AtaContent, mesclarPreservandoEdicoes } from '@talkin/core';
 import type { PipelinePorts, Providers } from './ports';
 import { PipelineError } from './pipeline';
 
@@ -26,7 +26,9 @@ export async function regenerateSummary(
       segments,
       context,
     });
-    const content = AtaContent.parse(ata.content);
+    // Blocos que o usuário editou na revisão não são sobrescritos pela IA.
+    const anterior = await ports.getLatestSummary(recordingId);
+    const content = mesclarPreservandoEdicoes(AtaContent.parse(ata.content), anterior);
     const summaryId = await ports.saveSummary(recordingId, template.templateId, content);
     await ports.upsertJob(recordingId, 'summarize', 'done');
 

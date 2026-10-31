@@ -22,7 +22,7 @@ export default function ComecarPage() {
       setErro(error.message);
       return;
     }
-    router.push('/biblioteca');
+    router.push('/gravar');
     router.refresh();
   }
 

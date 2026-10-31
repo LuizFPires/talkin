@@ -7,16 +7,19 @@ import { createClient } from '@/lib/supabase/client';
 import { Sidebar, Rotulo, Pilula } from '@talkin/ui';
 
 const ITENS = [
+  { key: '/gravar', label: 'Gravar reunião' },
   { key: '/biblioteca', label: 'Biblioteca' },
   { key: '/importar', label: 'Importar' },
   { key: '/bot', label: 'Bot de reunião' },
   { key: '/configuracoes', label: 'Configurações' },
 ];
 
-// Rótulos curtos para a barra inferior (mobile).
-const TABS = [
-  { key: '/biblioteca', label: 'Biblioteca' },
+// Barra inferior (mobile): dois botões de cada lado e Gravar no centro, elevado.
+const ESQUERDA = [
+  { key: '/biblioteca', label: 'Reuniões' },
   { key: '/importar', label: 'Importar' },
+];
+const DIREITA = [
   { key: '/bot', label: 'Bot' },
   { key: '/configuracoes', label: 'Config' },
 ];
@@ -105,10 +108,32 @@ function Icone({ nome }: { nome: string }) {
   );
 }
 
+function IconeMic({ tamanho = 26 }: { tamanho?: number }) {
+  return (
+    <svg
+      width={tamanho}
+      height={tamanho}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor" stroke="none" />
+      <path d="M6 11a6 6 0 0 0 12 0" />
+      <line x1="12" y1="17" x2="12" y2="21" />
+      <line x1="9" y1="21" x2="15" y2="21" />
+    </svg>
+  );
+}
+
 export function AppShell({ email, children }: { email: string; children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const activeKey = ITENS.find((i) => pathname.startsWith(i.key))?.key ?? '/biblioteca';
+  const activeKey = ITENS.find((i) => pathname.startsWith(i.key))?.key ?? '/gravar';
+  const gravando = pathname.startsWith('/gravar');
 
   // Prefetch das rotas do menu: o clique usa o payload já buscado (navegação instantânea).
   useEffect(() => {
@@ -129,6 +154,22 @@ export function AppShell({ email, children }: { email: string; children: React.R
     router.push('/login');
     router.refresh();
   }
+
+  const aba = (t: { key: string; label: string }) => {
+    const active = t.key === activeKey;
+    return (
+      <button
+        key={t.key}
+        type="button"
+        onClick={() => router.push(t.key)}
+        className={active ? 'tab-active' : undefined}
+        aria-current={active ? 'page' : undefined}
+      >
+        <Icone nome={t.key} />
+        {t.label}
+      </button>
+    );
+  };
 
   return (
     <div className="app-shell">
@@ -175,46 +216,22 @@ export function AppShell({ email, children }: { email: string; children: React.R
 
       <main className="app-main">{children}</main>
 
-      {/* Mobile: barra de navegação inferior (padrão de app) */}
+      {/* Mobile: barra inferior 2 + Gravar + 2 (padrão de app) */}
       <nav className="app-bottomnav" aria-label="Navegação principal">
-        {TABS.map((t) => {
-          const active = t.key === activeKey;
-          return (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => router.push(t.key)}
-              className={active ? 'tab-active' : undefined}
-              aria-current={active ? 'page' : undefined}
-            >
-              <Icone nome={t.key} />
-              {t.label}
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* Gravar sempre à mão (some na própria tela de gravação). */}
-      {!pathname.startsWith('/gravar') && (
-        <Link href="/gravar" className="fab-gravar" aria-label="Gravar reunião">
-          <svg
-            width={26}
-            height={26}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.8}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor" stroke="none" />
-            <path d="M6 11a6 6 0 0 0 12 0" />
-            <line x1="12" y1="17" x2="12" y2="21" />
-            <line x1="9" y1="21" x2="15" y2="21" />
-          </svg>
+        {ESQUERDA.map(aba)}
+        <Link
+          href="/gravar"
+          className={`nav-gravar${gravando ? ' tab-active' : ''}`}
+          aria-label="Gravar reunião"
+          aria-current={gravando ? 'page' : undefined}
+        >
+          <span className="nav-gravar-bola">
+            <IconeMic />
+          </span>
+          Gravar
         </Link>
-      )}
+        {DIREITA.map(aba)}
+      </nav>
     </div>
   );
 }
