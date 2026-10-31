@@ -20,6 +20,12 @@ type Props = {
   duracaoMs: number;
   /** Níveis RMS (0–1) amostrados durante a gravação; opcional. */
   niveis: number[];
+  /** Motivo curto quando a geração falhou; a Trilha fica na tela e oferece tentar de novo. */
+  falha?: string | null;
+  /** Não houve transcrição ao vivo (caminho antigo: processar o áudio). */
+  semLive?: boolean;
+  onTentar?: () => void;
+  onAbrir?: () => void;
 };
 
 const ETAPAS = ['Encerrando', 'Enviando', 'Relendo'] as const;
@@ -42,6 +48,10 @@ export function GerandoAta({
   momentosMs,
   duracaoMs,
   niveis,
+  falha = null,
+  semLive = false,
+  onTentar,
+  onAbrir,
 }: Props) {
   const [t, setT] = useState(0); // ms desde que a etapa 2 começou
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -54,7 +64,7 @@ export function GerandoAta({
 
   // Relógio da releitura (só na etapa 2).
   useEffect(() => {
-    if (etapa < 2 || pronto) return;
+    if (etapa < 2 || pronto || falha) return;
     const t0 = performance.now();
     let raf = 0;
     const tick = (now: number) => {
@@ -63,7 +73,7 @@ export function GerandoAta({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [etapa, pronto]);
+  }, [etapa, pronto, falha]);
 
   // Releitura: percorre a reunião em ~9 s e freia perto do fim até a ata chegar.
   const dur = Math.max(duracaoMs, 1000);
@@ -292,11 +302,32 @@ export function GerandoAta({
         })}
       </div>
 
-      <p style={{ color: 'var(--text-secondary)', fontSize: 12, margin: 0, textAlign: 'center' }}>
-        {etapa === 2 && !pronto
-          ? 'A transcrição já está salva. A ata leva poucos segundos.'
-          : 'Não feche esta tela até a ata ficar pronta.'}
-      </p>
+      {falha ? (
+        <div className="trilha-falha" role="alert">
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--danger)' }}>
+            {semLive ? 'Não consegui processar o áudio.' : 'Não consegui gerar a ata.'}
+          </p>
+          <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--text-secondary)' }}>
+            A gravação{semLive ? '' : ' e a transcrição'} já{' '}
+            {semLive ? 'está salva' : 'estão salvas'}. Motivo:{' '}
+            <code style={{ fontFamily: 'var(--font-mono)' }}>{falha}</code>
+          </p>
+          <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+            <button type="button" className="trilha-botao" onClick={onTentar}>
+              Tentar de novo
+            </button>
+            <button type="button" className="trilha-botao-sec" onClick={onAbrir}>
+              Abrir gravação mesmo assim
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p style={{ color: 'var(--text-secondary)', fontSize: 12, margin: 0, textAlign: 'center' }}>
+          {etapa === 2 && !pronto
+            ? 'A transcrição já está salva. A ata leva poucos segundos.'
+            : 'Não feche esta tela até a ata ficar pronta.'}
+        </p>
+      )}
     </div>
   );
 }

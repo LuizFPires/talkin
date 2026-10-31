@@ -45,6 +45,7 @@ export function GravacaoView({
   audioUrl,
   templates,
   templateId,
+  erroProcessamento = null,
 }: {
   recordingId: string;
   titulo: string;
@@ -55,6 +56,8 @@ export function GravacaoView({
   audioUrl: string | null;
   templates: Template[];
   templateId: string | null;
+  /** Motivo curto do último erro do pipeline (só quando status = erro). */
+  erroProcessamento?: string | null;
 }) {
   const router = useRouter();
   const [aba, setAba] = useState('ata');
@@ -237,7 +240,13 @@ export function GravacaoView({
         />
       </div>
 
-      {aba === 'ata' && <AbaAta ata={ata} MinutoPill={MinutoPill} />}
+      {aba === 'ata' && (
+        <AbaAta
+          ata={ata}
+          MinutoPill={MinutoPill}
+          erro={status === 'erro' ? (erroProcessamento ?? 'motivo não registrado') : null}
+        />
+      )}
       {aba === 'transcricao' && <AbaTranscricao segments={segments} MinutoPill={MinutoPill} />}
       {aba === 'pergunte' && <AbaPergunte recordingId={recordingId} MinutoPill={MinutoPill} />}
     </div>
@@ -321,16 +330,30 @@ function AbaPergunte({
 function AbaAta({
   ata,
   MinutoPill,
+  erro = null,
 }: {
   ata: AtaContent | null;
   MinutoPill: (p: { ms: number }) => React.ReactNode;
+  erro?: string | null;
 }) {
   if (!ata) {
     return (
       <Card>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: 0 }}>
-          Ata ainda não disponível. Ela aparece quando o processamento termina.
-        </p>
+        {erro ? (
+          <>
+            <p style={{ color: 'var(--danger)', fontSize: 14, margin: 0, fontWeight: 600 }}>
+              A geração da ata falhou.
+            </p>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '6px 0 0' }}>
+              Motivo: <code style={{ fontFamily: 'var(--font-mono)' }}>{erro}</code>. A gravação e a
+              transcrição estão salvas; use &ldquo;Regenerar ata&rdquo; para tentar de novo.
+            </p>
+          </>
+        ) : (
+          <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: 0 }}>
+            Ata ainda não disponível. Ela aparece quando o processamento termina.
+          </p>
+        )}
       </Card>
     );
   }

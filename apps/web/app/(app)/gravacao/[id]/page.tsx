@@ -4,6 +4,7 @@ import { isSupabaseConfigured } from '@/lib/supabase/env';
 import { AtaContent, type RecordingStatus } from '@talkin/core';
 import { GravacaoView } from '@/components/gravacao-view';
 import { GestaoGravacao } from '@/components/gestao-gravacao';
+import { ultimoErroJob } from '@/lib/job-erro';
 
 export const dynamic = 'force-dynamic';
 
@@ -84,6 +85,7 @@ export default async function GravacaoPage({ params }: { params: Promise<{ id: s
   const audioUrl = (signedRes.data as { signedUrl?: string } | null)?.signedUrl ?? null;
 
   const ata = summary?.content ? AtaContent.safeParse(summary.content) : null;
+  const erroProcessamento = rec.status === 'erro' ? await ultimoErroJob(supabase, rec.id) : null;
 
   return (
     <>
@@ -102,6 +104,7 @@ export default async function GravacaoPage({ params }: { params: Promise<{ id: s
         audioUrl={audioUrl}
         templates={templates}
         templateId={rec.template_id as string | null}
+        erroProcessamento={erroProcessamento}
       />
       <div style={{ maxWidth: 820, margin: '0 auto', padding: '0 4px' }}>
         <GestaoGravacao recordingId={rec.id} />
