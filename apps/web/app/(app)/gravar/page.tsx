@@ -37,6 +37,7 @@ type Estado = {
   niveis: number[]; // RMS 0–1 a cada ~400 ms, nunca sai do navegador
   motivoLive?: string; // por que o ao vivo não conectou (código HTTP/socket), para diagnóstico
   temLive: boolean; // houve transcrição ao vivo nesta gravação
+  ultimoErroFlush?: string; // ex.: "HTTP 409 Gravação não está em captura." (diagnóstico)
 };
 
 const LIVE_PARAMS = new URLSearchParams({
@@ -266,10 +267,19 @@ export default function GravarPage() {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ recordingId: e.recordingId, segments: lote }),
         });
-        if (!res.ok) throw new Error('persistência falhou');
+        if (!res.ok) {
+          const b = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(`HTTP ${res.status} ${b.error ?? ''}`.trim());
+        }
         setSalvos((n) => n + lote.length);
-      } catch {
-        e.fila.unshift(...lote); // tenta de novo no próximo ciclo
+        if (e.ultimoErroFlush) {
+          e.ultimoErroFlush = undefined;
+          setAviso(null);
+        }
+      } catch (err) {
+        e.fila.unshift(...lote); // tenta de novo no próximo ciclo (nunca descarta)
+        e.ultimoErroFlush = err instanceof Error ? err.message : 'sem conexão';
+        setAviso(`Não consegui salvar os trechos (${e.ultimoErroFlush}); tentando de novo.`);
       }
     });
     return e.flushing;
@@ -589,6 +599,18 @@ export default function GravarPage() {
     if (!e.recordingId) return;
     setFalhaFinal(null);
     setEtapaIdx(2);
+    // Trechos ainda não salvos (falha de rede/servidor): tenta mais 3 vezes antes de
+    // pedir a ata — senão o servidor responde "sem transcrição".
+    for (let tent = 0; tent < 3 && e.fila.length; tent++) {
+      await flush();
+      if (e.fila.length) await new Promise((r) => setTimeout(r, 1000 * (tent + 1)));
+    }
+    if (e.fila.length) {
+      setFalhaFinal(
+        `${e.fila.length} trecho(s) da transcrição não foram salvos (${e.ultimoErroFlush ?? 'sem detalhe'})`,
+      );
+      return;
+    }
     const rota = e.temLive ? '/api/ata/gerar' : '/api/process';
     setEtapaFinal(e.temLive ? 'Gerando a ata…' : 'Processando o áudio…');
     let detalhe: string | null = null;
@@ -612,7 +634,23 @@ export default function GravarPage() {
       detalhe = err instanceof Error ? err.message : 'sem conexão';
     }
     // A gravação e a transcrição estão salvas; o usuário decide tentar de novo ou abrir.
-    setFalhaFinal(detalhe);
+    // Anexa o que o servidor enxerga (contagens, sem conteúdo) para fechar o diagnóstico.
+    setFalhaFinal(`${detalhe}${await resumoDiagnostico(e.recordingId)}`);
+  }
+
+  /** "· servidor: 1 transcrição, 0 trechos · app: 12 salvos, 0 pendentes" (ou vazio). */
+  async function resumoDiagnostico(recordingId: string): Promise<string> {
+    const e = est.current;
+    try {
+      const res = await fetch(`/api/diagnostico/${recordingId}`);
+      if (!res.ok) return '';
+      const d = (await res.json()) as { transcricoes?: { trechos: number }[] };
+      const t = d.transcricoes ?? [];
+      const trechos = t.reduce((a, x) => a + x.trechos, 0);
+      return ` · servidor: ${t.length} transcrição(ões), ${trechos} trecho(s) · app: ${salvos} salvo(s), ${e.fila.length} pendente(s)${e.ultimoErroFlush ? `, último erro ${e.ultimoErroFlush}` : ''}`;
+    } catch {
+      return '';
+    }
   }
 
   function abrirGravacao() {
