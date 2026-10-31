@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
-import { writeFile, mkdtemp } from 'node:fs/promises';
+import { writeFile, mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { extname, join } from 'node:path';
 
 /**
  * Concatena os blocos de áudio e normaliza o volume com ffmpeg (worker).
@@ -40,6 +40,33 @@ export async function concatAndNormalize(chunks: string[]): Promise<string> {
     out,
   ]);
   return out;
+}
+
+/**
+ * Fallback sem ffmpeg (serverless): concatena os bytes dos blocos na ordem.
+ * Blocos do MediaRecorder com timeslice são fragmentos de UM stream (webm/opus
+ * ou fMP4): só o primeiro tem cabeçalho, então a junção byte a byte reconstrói
+ * o arquivo original. Sem normalização de volume — melhor do que falhar.
+ */
+export async function concatRaw(chunks: string[]): Promise<string> {
+  if (chunks.length === 0) throw new Error('sem blocos de áudio');
+  const dir = await mkdtemp(join(tmpdir(), 'talkin-raw-'));
+  const ext = extname(chunks[0]!) || '.webm';
+  const out = join(dir, `final${ext}`);
+  const partes: Buffer[] = [];
+  for (const c of chunks) partes.push(await readFile(c));
+  await writeFile(out, Buffer.concat(partes));
+  return out;
+}
+
+/** True quando o erro é "ffmpeg não instalado" (spawn ENOENT), caso do serverless. */
+export function semFfmpeg(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: unknown }).code === 'ENOENT'
+  );
 }
 
 function runFfmpeg(args: string[]): Promise<void> {
