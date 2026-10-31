@@ -2,7 +2,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, extname } from 'node:path';
 import type { PipelinePorts } from '@talkin/pipeline';
-import { concatAndNormalize } from '@talkin/pipeline';
+import { concatAndNormalize, concatRaw, semFfmpeg } from '@talkin/pipeline';
 import type { AtaContent, TranscriptionResult } from '@talkin/core';
 import { createAdminClient } from './supabase/admin';
 import { toVectorLiteral } from './pergunte';
@@ -61,7 +61,15 @@ export function createSupabasePorts(): PipelinePorts {
         await writeFile(local, Buffer.from(await data.arrayBuffer()));
         localPaths.push(local);
       }
-      return localPaths.length === 1 ? localPaths[0]! : concatAndNormalize(localPaths);
+      if (localPaths.length === 1) return localPaths[0]!;
+      try {
+        return await concatAndNormalize(localPaths);
+      } catch (err) {
+        // Serverless (Vercel) não tem ffmpeg: junta os bytes dos blocos na ordem
+        // (fragmentos de um mesmo stream) e segue sem normalizar o volume.
+        if (semFfmpeg(err)) return concatRaw(localPaths);
+        throw err;
+      }
     },
 
     async saveTranscript(recordingId, result: TranscriptionResult) {
