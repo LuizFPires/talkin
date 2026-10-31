@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
+import { ConfirmarExclusao } from '@/components/confirmar-exclusao';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
@@ -16,7 +17,6 @@ export function MenuGravacao({ recordingId, titulo }: { recordingId: string; tit
   const [erro, setErro] = useState<string | null>(null);
   const raiz = useRef<HTMLDivElement | null>(null);
   const idMenu = useId();
-  const idDialogo = useId();
   const router = useRouter();
 
   // Fecha o menu ao clicar fora ou apertar Esc.
@@ -35,15 +35,6 @@ export function MenuGravacao({ recordingId, titulo }: { recordingId: string; tit
       document.removeEventListener('keydown', esc);
     };
   }, [aberto]);
-
-  useEffect(() => {
-    if (!confirmando) return;
-    const esc = (ev: KeyboardEvent) => {
-      if (ev.key === 'Escape' && !excluindo) setConfirmando(false);
-    };
-    document.addEventListener('keydown', esc);
-    return () => document.removeEventListener('keydown', esc);
-  }, [confirmando, excluindo]);
 
   async function excluir() {
     setExcluindo(true);
@@ -105,52 +96,13 @@ export function MenuGravacao({ recordingId, titulo }: { recordingId: string; tit
       )}
 
       {confirmando && (
-        <div className="confirmacao-fundo" onClick={() => !excluindo && setConfirmando(false)}>
-          <div
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby={`${idDialogo}-t`}
-            aria-describedby={`${idDialogo}-d`}
-            className="confirmacao"
-            onClick={(ev) => ev.stopPropagation()}
-          >
-            <h2 id={`${idDialogo}-t`} style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>
-              Excluir esta gravação?
-            </h2>
-            <p
-              id={`${idDialogo}-d`}
-              style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: 'var(--text-secondary)' }}
-            >
-              <strong style={{ color: 'var(--text)', fontWeight: 600 }}>{titulo}</strong> vai para a
-              lixeira e some para todos da empresa, com o áudio, a transcrição e a ata. Links
-              compartilhados param de funcionar. Dá para restaurar em até 30 dias.
-            </p>
-            {erro && (
-              <p role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>
-                {erro}
-              </p>
-            )}
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className="confirmacao-cancelar"
-                onClick={() => setConfirmando(false)}
-                disabled={excluindo}
-                autoFocus
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                className="confirmacao-excluir"
-                onClick={excluir}
-                disabled={excluindo}
-              >
-                {excluindo ? 'Excluindo…' : 'Excluir gravação'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmarExclusao
+          titulo={titulo}
+          excluindo={excluindo}
+          erro={erro}
+          onCancelar={() => !excluindo && setConfirmando(false)}
+          onConfirmar={() => void excluir()}
+        />
       )}
     </div>
   );

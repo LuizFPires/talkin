@@ -8,7 +8,7 @@ import { isSupabaseConfigured } from '@/lib/supabase/env';
 import { Card, Rotulo } from '@talkin/ui';
 import { GerandoAta, type EtapaFinal } from '@/components/gerando-ata';
 
-type Fase = 'idle' | 'gravando' | 'finalizando';
+type Fase = 'idle' | 'contagem' | 'gravando' | 'finalizando';
 
 /** Trecho final da transcrição ao vivo (falante por índice do diarizador). */
 type Trecho = { speaker: number; startMs: number; endMs: number; text: string };
@@ -170,6 +170,8 @@ export default function GravarPage() {
   const [duracaoMs, setDuracaoMs] = useState(0);
   const [niveis, setNiveis] = useState<number[]>([]);
   const [falhaFinal, setFalhaFinal] = useState<string | null>(null);
+  const [contagem, setContagem] = useState(3);
+  const [tituloSalvo, setTituloSalvo] = useState(false);
   const painelRef = useRef<HTMLDivElement | null>(null);
 
   const est = useRef<Estado>({
@@ -375,6 +377,11 @@ export default function GravarPage() {
 
   // ───────────────────────────────── controles ─────────────────────────────────
 
+  /**
+   * Um toque: pede o microfone, mostra a contagem 3·2·1 e começa a gravar.
+   * Enquanto conta, cria a gravação e conecta o ao vivo — ao chegar no 1 já grava.
+   * O título fica para depois (na tela de espera da ata).
+   */
   async function iniciar() {
     setErro(null);
     setAviso(null);
@@ -392,101 +399,136 @@ export default function GravarPage() {
       return;
     }
 
+    setContagem(3);
+    setFase('contagem');
+    const contar = (async () => {
+      for (const n of [3, 2, 1]) {
+        setContagem(n);
+        await new Promise((r) => setTimeout(r, 900));
+      }
+    })();
+
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error('sessão expirada');
-      const { data: m } = await supabase
-        .from('memberships')
-        .select('organization_id')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      const org = m?.organization_id as string | undefined;
-      if (!org) throw new Error('empresa não encontrada');
-
-      const { data: rec, error: recErr } = await supabase
-        .from('recordings')
-        .insert({
-          organization_id: org,
-          created_by: user.id,
-          title: titulo.trim() || '',
-          source: 'presencial',
-        })
-        .select('id')
-        .single();
-      if (recErr || !rec) throw new Error(recErr?.message ?? 'falha ao criar gravação');
-
-      const { mime, ext } = escolherMime();
-      const e = est.current;
-      e.stream = stream;
-      e.recordingId = rec.id;
-      e.org = org;
-      e.ext = ext;
-      e.mime = mime;
-      e.index = 0;
-      e.cadeia = Promise.resolve();
-      e.fila = [];
-      e.flushing = Promise.resolve();
-      e.wsTentativas = 0;
-      e.acumuladoMs = 0;
-      e.inicioSegmento = Date.now();
-      e.niveis = [];
-      setPronto(false);
-      setEtapaIdx(0);
-      setNiveis([]);
-      setDuracaoMs(0);
-      iniciarMedidor(e, stream);
-      setEnviados(0);
-      setTotal(0);
-      setSegundos(0);
-      setMomentos([]);
-      setTrechos([]);
-      setParcial('');
-      setSalvos(0);
-      setPausado(false);
-
-      // Transcrição ao vivo (se o provedor estiver configurado); sem ela, segue
-      // gravando e processa ao parar pelo caminho antigo.
-      const live = await conectarLive();
-      if (!live) {
-        setAviso(
-          `Transcrição ao vivo indisponível (${e.motivoLive ?? 'sem detalhe'}) — a ata será gerada ao parar.`,
-        );
-      }
-
-      // Gravador 1: blocos de 20s para o arquivo/player.
-      const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-      e.rec = mr;
-      mr.ondataavailable = (ev: BlobEvent) => {
-        if (!ev.data || ev.data.size === 0) return;
-        const idx = e.index++;
-        const blob = ev.data;
-        setTotal((n) => n + 1);
-        e.cadeia = e.cadeia.then(() => subirBloco(supabase, org, rec.id, idx, blob, ext));
-      };
-      mr.start(20000);
-
-      // Gravador 2: blocos de 250ms direto para o socket do Deepgram.
-      if (live) {
-        const ml = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-        e.recLive = ml;
-        ml.ondataavailable = (ev: BlobEvent) => {
-          const ws = e.ws;
-          if (ev.data?.size && ws && ws.readyState === WebSocket.OPEN) ws.send(ev.data);
-        };
-        ml.start(250);
-        e.flushTimer = setInterval(() => void flush(), 4000);
-      }
-
-      e.timer = setInterval(() => setSegundos(Math.floor(posMs() / 1000)), 500);
+      const [{ org, recId, live }] = await Promise.all([preparar(supabase, stream), contar]);
+      comecar(supabase, stream, org, recId, live);
       setFase('gravando');
     } catch (err) {
       stream.getTracks().forEach((t) => t.stop());
+      pararMedidor(est.current);
+      setFase('idle');
       setErro(err instanceof Error ? err.message : 'falha ao iniciar a gravação');
     }
+  }
+
+  /** Cria a gravação no banco, zera o estado e tenta conectar a transcrição ao vivo. */
+  async function preparar(
+    supabase: SupabaseClient,
+    stream: MediaStream,
+  ): Promise<{ org: string; recId: string; live: boolean }> {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error('sessão expirada');
+    const { data: m } = await supabase
+      .from('memberships')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    const org = m?.organization_id as string | undefined;
+    if (!org) throw new Error('empresa não encontrada');
+
+    const { data: rec, error: recErr } = await supabase
+      .from('recordings')
+      .insert({
+        organization_id: org,
+        created_by: user.id,
+        title: '',
+        source: 'presencial',
+      })
+      .select('id')
+      .single();
+    if (recErr || !rec) throw new Error(recErr?.message ?? 'falha ao criar gravação');
+
+    const { mime, ext } = escolherMime();
+    const e = est.current;
+    e.stream = stream;
+    e.recordingId = rec.id;
+    e.org = org;
+    e.ext = ext;
+    e.mime = mime;
+    e.index = 0;
+    e.cadeia = Promise.resolve();
+    e.fila = [];
+    e.flushing = Promise.resolve();
+    e.wsTentativas = 0;
+    e.acumuladoMs = 0;
+    e.niveis = [];
+    e.temLive = false;
+    setPronto(false);
+    setEtapaIdx(0);
+    setNiveis([]);
+    setDuracaoMs(0);
+    setEnviados(0);
+    setTotal(0);
+    setSegundos(0);
+    setMomentos([]);
+    setTrechos([]);
+    setParcial('');
+    setSalvos(0);
+    setPausado(false);
+    setTitulo('');
+    setTituloSalvo(false);
+    setFalhaFinal(null);
+
+    // Transcrição ao vivo (se o provedor estiver configurado); sem ela, segue
+    // gravando e processa ao parar pelo caminho antigo.
+    const live = await conectarLive();
+    if (!live) {
+      setAviso(
+        `Transcrição ao vivo indisponível (${e.motivoLive ?? 'sem detalhe'}) — a ata será gerada ao parar.`,
+      );
+    }
+    return { org, recId: rec.id, live };
+  }
+
+  /** Liga os gravadores (blocos de 20 s para o arquivo; 250 ms para o ao vivo). */
+  function comecar(
+    supabase: SupabaseClient,
+    stream: MediaStream,
+    org: string,
+    recId: string,
+    live: boolean,
+  ) {
+    const e = est.current;
+    const { mime, ext } = e;
+    e.inicioSegmento = Date.now();
+    iniciarMedidor(e, stream);
+
+    const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    e.rec = mr;
+    mr.ondataavailable = (ev: BlobEvent) => {
+      if (!ev.data || ev.data.size === 0) return;
+      const idx = e.index++;
+      const blob = ev.data;
+      setTotal((n) => n + 1);
+      e.cadeia = e.cadeia.then(() => subirBloco(supabase, org, recId, idx, blob, ext));
+    };
+    mr.start(20000);
+
+    if (live) {
+      const ml = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      e.recLive = ml;
+      ml.ondataavailable = (ev: BlobEvent) => {
+        const ws = e.ws;
+        if (ev.data?.size && ws && ws.readyState === WebSocket.OPEN) ws.send(ev.data);
+      };
+      ml.start(250);
+      e.flushTimer = setInterval(() => void flush(), 4000);
+    }
+
+    e.timer = setInterval(() => setSegundos(Math.floor(posMs() / 1000)), 500);
   }
 
   function pausar() {
@@ -623,6 +665,7 @@ export default function GravarPage() {
         body: JSON.stringify({ recordingId: e.recordingId }),
       });
       if (res.ok) {
+        await salvarTitulo();
         // Fecha a trilha (100%) antes de trocar de tela.
         setPronto(true);
         await new Promise((r) => setTimeout(r, 700));
@@ -655,56 +698,97 @@ export default function GravarPage() {
     }
   }
 
-  function abrirGravacao() {
+  /** Grava o título digitado na tela de espera (vazio = mantém "Sem título"). */
+  async function salvarTitulo() {
+    const e = est.current;
+    const t = titulo.trim();
+    if (!e.recordingId || !t) return;
+    const { error } = await createClient()
+      .from('recordings')
+      .update({ title: t })
+      .eq('id', e.recordingId);
+    if (!error) setTituloSalvo(true);
+  }
+
+  async function abrirGravacao() {
     const e = est.current;
     if (!e.recordingId) return;
+    await salvarTitulo();
     router.push(`/gravacao/${e.recordingId}`);
     router.refresh();
   }
 
   // ─────────────────────────────────── UI ───────────────────────────────────
 
+  // Tela inicial: só o botão grande no centro. Um toque e a gravação começa.
+  if (fase === 'idle' || fase === 'contagem') {
+    return (
+      <div className="gravar-inicio">
+        {fase === 'idle' ? (
+          <button
+            type="button"
+            onClick={() => void iniciar()}
+            disabled={!configurado}
+            aria-label="Gravar reunião"
+            className="gravar-bola"
+          >
+            <MicIcon tamanho={64} />
+          </button>
+        ) : (
+          <div className="gravar-contagem" role="status" aria-live="assertive">
+            <span key={contagem} className="gravar-contagem-num">
+              {contagem}
+            </span>
+          </div>
+        )}
+        <div>
+          <h1 style={{ fontSize: 22, margin: 0, fontWeight: 600 }}>
+            {fase === 'idle' ? 'Gravar reunião' : 'Começando…'}
+          </h1>
+          <p
+            style={{
+              color: 'var(--text-secondary)',
+              fontSize: 13,
+              margin: '8px auto 0',
+              maxWidth: 300,
+              lineHeight: 1.5,
+            }}
+          >
+            {fase === 'idle' ? (
+              <>
+                Toque uma vez para começar.{' '}
+                <strong style={{ color: 'var(--text)' }}>Avise os participantes</strong> que a
+                reunião será gravada. O título você dá no final.
+              </>
+            ) : (
+              'Microfone ligado. A gravação começa no 1.'
+            )}
+          </p>
+        </div>
+        {erro && (
+          <span style={{ color: 'var(--danger)', fontSize: 13, textAlign: 'center' }} role="alert">
+            {erro}
+          </span>
+        )}
+        {!configurado && (
+          <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: 0 }}>
+            Modo só-código: conecte o Supabase para gravar de verdade.
+          </p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', padding: '8px 4px 40px' }}>
       <header style={{ marginBottom: 16 }}>
-        <Rotulo>Gravar</Rotulo>
-        <h1 style={{ fontSize: 24, margin: '4px 0 0', fontWeight: 600 }}>Gravar reunião</h1>
+        <Rotulo>{fase === 'gravando' ? 'Gravando' : 'Reunião encerrada'}</Rotulo>
+        <h1 style={{ fontSize: 24, margin: '4px 0 0', fontWeight: 600 }}>
+          {fase === 'gravando' ? 'Gravar reunião' : 'Dê um título à reunião'}
+        </h1>
       </header>
 
       <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-        {fase === 'idle' && (
-          <>
-            <input
-              type="text"
-              placeholder="Título (opcional)"
-              value={titulo}
-              onChange={(ev) => setTitulo(ev.target.value)}
-              style={campo}
-            />
-            <button
-              type="button"
-              onClick={iniciar}
-              disabled={!configurado}
-              aria-label="Iniciar gravação"
-              style={botaoGravar}
-            >
-              <MicIcon />
-            </button>
-            <p
-              style={{
-                color: 'var(--text-secondary)',
-                fontSize: 13,
-                textAlign: 'center',
-                margin: 0,
-              }}
-            >
-              Toque para iniciar.{' '}
-              <strong style={{ color: 'var(--text)' }}>Avise os participantes</strong> que a reunião
-              será gravada. A transcrição aparece aqui em tempo real.
-            </p>
-          </>
-        )}
-
         {fase === 'gravando' && (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -779,19 +863,45 @@ export default function GravarPage() {
         )}
 
         {fase === 'finalizando' && (
-          <GerandoAta
-            etapa={etapaIdx}
-            mensagem={etapaFinal}
-            pronto={pronto}
-            trechos={trechos}
-            momentosMs={momentos}
-            duracaoMs={duracaoMs}
-            niveis={niveis}
-            falha={falhaFinal}
-            semLive={!est.current.temLive}
-            onTentar={() => void gerarAta()}
-            onAbrir={abrirGravacao}
-          />
+          <>
+            {/* O título é dado agora, enquanto a ata é gerada. */}
+            <label style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <Rotulo>Título da reunião</Rotulo>
+              <input
+                type="text"
+                placeholder="Ex.: Reunião de obra — Torre B"
+                value={titulo}
+                autoFocus
+                onChange={(ev) => {
+                  setTitulo(ev.target.value);
+                  setTituloSalvo(false);
+                }}
+                onBlur={() => void salvarTitulo()}
+                onKeyDown={(ev) => {
+                  if (ev.key === 'Enter') (ev.target as HTMLInputElement).blur();
+                }}
+                style={campo}
+              />
+              <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                {tituloSalvo
+                  ? 'Título salvo.'
+                  : 'Opcional — dá para mudar depois na tela da reunião.'}
+              </span>
+            </label>
+            <GerandoAta
+              etapa={etapaIdx}
+              mensagem={etapaFinal}
+              pronto={pronto}
+              trechos={trechos}
+              momentosMs={momentos}
+              duracaoMs={duracaoMs}
+              niveis={niveis}
+              falha={falhaFinal}
+              semLive={!est.current.temLive}
+              onTentar={() => void gerarAta()}
+              onAbrir={() => void abrirGravacao()}
+            />
+          </>
         )}
 
         {aviso && !erro && (
@@ -805,21 +915,15 @@ export default function GravarPage() {
           </span>
         )}
       </Card>
-
-      {!configurado && (
-        <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 12 }}>
-          Modo só-código: conecte o Supabase para gravar de verdade.
-        </p>
-      )}
     </div>
   );
 }
 
-function MicIcon() {
+function MicIcon({ tamanho = 40 }: { tamanho?: number }) {
   return (
     <svg
-      width="40"
-      height="40"
+      width={tamanho}
+      height={tamanho}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -844,19 +948,6 @@ const campo: React.CSSProperties = {
   background: 'var(--bg)',
   color: 'var(--text)',
   fontSize: 14,
-};
-
-const botaoGravar: React.CSSProperties = {
-  width: 128,
-  height: 128,
-  borderRadius: '50%',
-  border: 'none',
-  background: 'var(--accent)',
-  color: 'var(--on-accent)',
-  display: 'grid',
-  placeItems: 'center',
-  cursor: 'pointer',
-  boxShadow: '0 0 0 8px color-mix(in srgb, var(--accent) 16%, transparent)',
 };
 
 const botaoParar: React.CSSProperties = {

@@ -225,12 +225,16 @@ export function GravacaoView({
         </button>
         <a
           href={`/api/pdf?recordingId=${recordingId}`}
+          target="_blank"
+          rel="noopener"
           style={{ ...acaoBtn, textDecoration: 'none' }}
         >
           Baixar PDF
         </a>
         <a
           href={`/api/docx?recordingId=${recordingId}`}
+          target="_blank"
+          rel="noopener"
           style={{ ...acaoBtn, textDecoration: 'none' }}
         >
           Baixar DOCX

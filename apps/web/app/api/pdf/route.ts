@@ -91,7 +91,7 @@ export async function GET(request: Request) {
       // Sem navegador disponível: cai para o HTML imprimível abaixo (nunca um erro seco).
     }
   }
-  return new NextResponse(htmlImprimivel(buildAtaHtml(doc)), {
+  return new NextResponse(htmlImprimivel(buildAtaHtml(doc), `/gravacao/${recordingId}`), {
     headers: {
       'content-type': 'text/html; charset=utf-8',
       'content-disposition': 'inline',
@@ -114,10 +114,11 @@ export async function GET(request: Request) {
 }
 
 /** A mesma ata, aberta no navegador com uma faixa "Imprimir / Salvar como PDF". */
-function htmlImprimivel(html: string): string {
+function htmlImprimivel(html: string, voltar: string): string {
   // Sem script (CSP script-src 'none'): a instrução é pelo atalho/menu do navegador.
   const faixa = `<div id="talkin-print" style="position:sticky;top:0;z-index:9;display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center;padding:10px 16px;background:#0f1c1d;color:#f5f5f7;font:14px Inter,system-ui,sans-serif">
-  Para salvar em PDF: <strong>Ctrl+P</strong> (ou menu do navegador → Imprimir) e escolha <strong>Salvar como PDF</strong>.
+  <a href="${voltar}" style="color:#94efda;text-decoration:none;font-weight:600">← Voltar ao Talkin</a>
+  <span>Para salvar em PDF: <strong>Ctrl+P</strong> (ou menu do navegador → Imprimir) e escolha <strong>Salvar como PDF</strong>.</span>
 </div>
 <style>@media print { #talkin-print { display:none } }</style>`;
   return html.includes('<body') ? html.replace(/<body([^>]*)>/, `<body$1>${faixa}`) : faixa + html;
