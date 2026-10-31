@@ -1,6 +1,17 @@
-// Service worker do Talkin (M9). NÃO cacheia HTML/navegação autenticada nem /api —
-// só estáticos públicos. Offline mostra uma página genérica, sem dados do usuário.
-const CACHE = 'talkin-v1';
+/**
+ * Service worker do Talkin (M9), servido por rota para carregar a versão do
+ * build. Como o conteúdo muda a cada deploy, o navegador detecta a versão nova
+ * e o app mostra o aviso "Atualizar" (components/sw-register.tsx).
+ *
+ * NÃO cacheia HTML/navegação autenticada nem /api — só estáticos públicos.
+ * Offline mostra uma página genérica, sem dados do usuário.
+ */
+export const dynamic = 'force-static';
+
+const VERSAO = process.env.NEXT_PUBLIC_VERSAO ?? 'dev';
+
+const SCRIPT = `// Talkin SW · versão ${VERSAO}
+const CACHE = 'talkin-${VERSAO}';
 const PRECACHE = ['/offline', '/icon.svg', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
@@ -60,3 +71,15 @@ self.addEventListener('fetch', (event) => {
     ),
   );
 });
+`;
+
+export function GET() {
+  return new Response(SCRIPT, {
+    headers: {
+      'content-type': 'application/javascript; charset=utf-8',
+      // O navegador precisa reler o sw.js para perceber a versão nova.
+      'cache-control': 'no-cache, max-age=0',
+      'service-worker-allowed': '/',
+    },
+  });
+}
