@@ -76,13 +76,14 @@ export default async function GravacaoPage({ params }: { params: Promise<{ id: s
           .eq('transcript_id', transcript.id)
           .order('start_ms', { ascending: true })
       : Promise.resolve({ data: null }),
-    chunk
-      ? supabase.storage.from('audio').createSignedUrl(chunk.storage_path, 3600)
-      : Promise.resolve({ data: null }),
+    Promise.resolve({ data: null }), // áudio vem por /api/audio/[id] (arquivo completo)
   ]);
 
   const segments = (segmentsRes.data as unknown as SegmentRow[] | null) ?? [];
-  const audioUrl = (signedRes.data as { signedUrl?: string } | null)?.signedUrl ?? null;
+  void signedRes;
+  // Rota que monta o arquivo completo (todos os blocos) uma vez e redireciona para
+  // uma URL assinada com Range — o player passa a ter a gravação inteira.
+  const audioUrl = chunk ? `/api/audio/${rec.id}` : null;
 
   const ata = summary?.content ? AtaContent.safeParse(summary.content) : null;
   const erroProcessamento = rec.status === 'erro' ? await ultimoErroJob(supabase, rec.id) : null;

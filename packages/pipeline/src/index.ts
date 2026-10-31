@@ -1,5 +1,6 @@
 export { processRecording, PipelineError } from './pipeline';
 export { regenerateSummary } from './regenerate';
+export { embedRecording } from './embed';
 export type { PipelinePorts, Providers } from './ports';
 export { selectProviders } from './select';
 export { concatAndNormalize, concatRaw, semFfmpeg } from './audio';

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { regenerateSummary, selectProviders } from '@talkin/pipeline';
+import { embedRecording, regenerateSummary, selectProviders } from '@talkin/pipeline';
 import { ultimoErroJob } from '@/lib/job-erro';
 import { createSupabasePorts } from '@/lib/pipeline-ports';
 import { createAdminClient, hasServiceRole } from '@/lib/supabase/admin';
@@ -47,7 +47,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    await regenerateSummary(recordingId, createSupabasePorts(), selectProviders());
+    const ports = createSupabasePorts();
+    const providers = selectProviders();
+    await regenerateSummary(recordingId, ports, providers);
+    // Embeddings da transcrição ao vivo (busca por significado e "Pergunte").
+    // Não bloqueia a ata: falha fica registrada no job 'embed'.
+    await embedRecording(recordingId, ports, providers).catch(() => {});
     return NextResponse.json({ ok: true });
   } catch {
     // regenerateSummary já marcou 'erro' e registrou o job. Devolve o motivo curto

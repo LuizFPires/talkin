@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { AtaContent } from '@talkin/core';
-import { renderAtaPdf, type AtaDoc } from '@talkin/pdf';
+import { buildAtaHtml, renderAtaPdf, type AtaDoc } from '@talkin/pdf';
 import { createClient } from '@/lib/supabase/server';
 import { ehUuid } from '@/lib/uuid';
 
@@ -76,15 +76,49 @@ export async function GET(request: Request) {
     template: org?.pdf_template ?? 'executiva',
   };
 
-  try {
-    const pdf = await renderAtaPdf(doc);
-    return new NextResponse(Buffer.from(pdf), {
-      headers: {
-        'content-type': 'application/pdf',
-        'content-disposition': `attachment; filename="ata-${recordingId}.pdf"`,
-      },
-    });
-  } catch {
-    return NextResponse.json({ error: 'Falha ao gerar o PDF.' }, { status: 500 });
+  // ?formato=html devolve a versão imprimível (também é o fallback se o Chromium falhar).
+  const soHtml = new URL(request.url).searchParams.get('formato') === 'html';
+  if (!soHtml) {
+    try {
+      const pdf = await renderAtaPdf(doc);
+      return new NextResponse(Buffer.from(pdf), {
+        headers: {
+          'content-type': 'application/pdf',
+          'content-disposition': `attachment; filename="ata-${recordingId}.pdf"`,
+        },
+      });
+    } catch {
+      // Sem navegador disponível: cai para o HTML imprimível abaixo (nunca um erro seco).
+    }
   }
+  return new NextResponse(htmlImprimivel(buildAtaHtml(doc)), {
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'content-disposition': 'inline',
+      'cache-control': 'private, no-store',
+      'x-content-type-options': 'nosniff',
+      // A página contém texto da transcrição/cadastro: nenhum script roda aqui,
+      // só estilos inline e fontes do Google (as mesmas do render em PDF).
+      'content-security-policy': [
+        "default-src 'none'",
+        'img-src data:',
+        "style-src 'unsafe-inline' https://fonts.googleapis.com",
+        'font-src https://fonts.gstatic.com',
+        "script-src 'none'",
+        "frame-ancestors 'none'",
+        "base-uri 'none'",
+        "form-action 'none'",
+      ].join('; '),
+    },
+  });
+}
+
+/** A mesma ata, aberta no navegador com uma faixa "Imprimir / Salvar como PDF". */
+function htmlImprimivel(html: string): string {
+  // Sem script (CSP script-src 'none'): a instrução é pelo atalho/menu do navegador.
+  const faixa = `<div id="talkin-print" style="position:sticky;top:0;z-index:9;display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center;padding:10px 16px;background:#0f1c1d;color:#f5f5f7;font:14px Inter,system-ui,sans-serif">
+  Para salvar em PDF: <strong>Ctrl+P</strong> (ou menu do navegador → Imprimir) e escolha <strong>Salvar como PDF</strong>.
+</div>
+<style>@media print { #talkin-print { display:none } }</style>`;
+  return html.includes('<body') ? html.replace(/<body([^>]*)>/, `<body$1>${faixa}`) : faixa + html;
 }

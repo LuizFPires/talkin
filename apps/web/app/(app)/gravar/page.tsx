@@ -581,12 +581,14 @@ export default function GravarPage() {
 
     const supabase = createClient();
     e.temLive = trechos.length + e.fila.length > 0 || salvos > 0;
-    if (momentos.length) {
-      await supabase
-        .from('recordings')
-        .update({ highlights: momentos.map((atMs) => ({ atMs })) })
-        .eq('id', e.recordingId);
-    }
+    // Duração real (sem pausas) e momentos marcados: o player e o PDF usam.
+    await supabase
+      .from('recordings')
+      .update({
+        duration_s: Math.max(1, Math.round(duracaoMs / 1000)),
+        highlights: momentos.map((atMs) => ({ atMs })),
+      })
+      .eq('id', e.recordingId);
     await gerarAta();
   }
 
