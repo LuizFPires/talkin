@@ -11,6 +11,7 @@ import {
 } from '@talkin/core';
 import { Card, Pilula, Rotulo, ToggleSegmentado } from '@talkin/ui';
 import { StatusBadge } from './status-badge';
+import { MenuGravacao } from './menu-gravacao';
 import { createClient } from '@/lib/supabase/client';
 
 type Seg = { startMs: number; endMs: number; text: string; falante: string };
@@ -144,8 +145,11 @@ export function GravacaoView({
       <header style={{ marginBottom: 16 }}>
         <Rotulo>Gravação</Rotulo>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
-          <h1 style={{ fontSize: 24, margin: 0, fontWeight: 600, flex: 1 }}>{titulo}</h1>
+          <h1 style={{ fontSize: 24, margin: 0, fontWeight: 600, flex: 1, minWidth: 0 }}>
+            {titulo}
+          </h1>
           <StatusBadge status={status} />
+          <MenuGravacao recordingId={recordingId} titulo={titulo} />
         </div>
         <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
           {formatDateBR(criadoEm)}
