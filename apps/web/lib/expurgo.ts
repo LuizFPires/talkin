@@ -21,15 +21,25 @@ export async function expurgarGravacao(
   if (!rec) return { ok: false, motivo: 'não encontrada' };
   if (!rec.deleted_at) return { ok: false, motivo: 'não está na lixeira' };
 
+  // Só apaga dentro da pasta desta gravação. `storage_path` de recording_chunks é
+  // gravado pelo cliente, então um caminho fora da pasta (ex.: áudio de outra
+  // empresa) é ignorado — o service role nunca pode virar "confused deputy".
   const pasta = `${rec.organization_id}/${rec.id}`;
+  const prefixo = `${pasta}/`;
   const caminhos = new Set<string>();
   const { data: chunks } = await admin
     .from('recording_chunks')
     .select('storage_path')
     .eq('recording_id', rec.id);
-  for (const c of (chunks as { storage_path: string }[] | null) ?? []) caminhos.add(c.storage_path);
+  for (const c of (chunks as { storage_path: string }[] | null) ?? []) {
+    const p = c.storage_path;
+    if (typeof p === 'string' && p.startsWith(prefixo) && !p.includes('..')) caminhos.add(p);
+  }
   const { data: objetos } = await admin.storage.from('audio').list(pasta, { limit: 1000 });
-  for (const o of objetos ?? []) if (o.name) caminhos.add(`${pasta}/${o.name}`);
+  for (const o of objetos ?? []) {
+    if (o.name && !o.name.includes('/') && !o.name.includes('..'))
+      caminhos.add(`${pasta}/${o.name}`);
+  }
 
   if (caminhos.size) {
     const { error } = await admin.storage.from('audio').remove([...caminhos]);
