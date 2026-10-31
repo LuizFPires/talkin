@@ -428,3 +428,31 @@ body {
     bottom: calc(84px + env(safe-area-inset-bottom));
   }
 }
+
+/* ── Lixeira (components/lixeira.tsx) ── */
+.lixeira-restaurar,
+.lixeira-excluir {
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  font: 600 13px var(--font-sans, inherit);
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+}
+.lixeira-excluir {
+  color: var(--danger);
+}
+.lixeira-restaurar:hover {
+  border-color: var(--accent);
+}
+.lixeira-restaurar:disabled,
+.lixeira-excluir:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.lixeira-restaurar:focus-visible,
+.lixeira-excluir:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

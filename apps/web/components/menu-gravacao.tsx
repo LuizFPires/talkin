@@ -121,9 +121,9 @@ export function MenuGravacao({ recordingId, titulo }: { recordingId: string; tit
               id={`${idDialogo}-d`}
               style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: 'var(--text-secondary)' }}
             >
-              <strong style={{ color: 'var(--text)', fontWeight: 600 }}>{titulo}</strong> deixa de
-              aparecer para todos da empresa, com o áudio, a transcrição e a ata. Links
-              compartilhados param de funcionar.
+              <strong style={{ color: 'var(--text)', fontWeight: 600 }}>{titulo}</strong> vai para a
+              lixeira e some para todos da empresa, com o áudio, a transcrição e a ata. Links
+              compartilhados param de funcionar. Dá para restaurar em até 30 dias.
             </p>
             {erro && (
               <p role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>
