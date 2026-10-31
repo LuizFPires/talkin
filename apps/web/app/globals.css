@@ -383,3 +383,48 @@ body {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* ── Aviso de versão nova (components/sw-register.tsx) ── */
+.sw-atualizar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 32px);
+  padding: 8px 8px 8px 14px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(180deg, #283334, #1b2728);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+.sw-atualizar button {
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 7px 14px;
+  font: 600 13px var(--font-sans, inherit);
+  cursor: pointer;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.sw-atualizar button.depois {
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 500;
+  padding: 7px 8px;
+}
+.sw-atualizar button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (max-width: 768px) {
+  .sw-atualizar {
+    /* acima da barra inferior do shell */
+    bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+}
