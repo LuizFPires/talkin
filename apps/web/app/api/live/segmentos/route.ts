@@ -50,6 +50,19 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
 
+  // Espelha as rotas irmãs: autoriza explicitamente e só aceita gravação em captura
+  // (a RLS já protege, mas isso dá 404/409 claros e evita anexar trechos a uma ata pronta).
+  const { data: canModify } = await supabase.rpc('can_modify_recording', { rec: recordingId });
+  if (!canModify) return NextResponse.json({ error: 'Não encontrado.' }, { status: 404 });
+  const { data: rec } = await supabase
+    .from('recordings')
+    .select('status')
+    .eq('id', recordingId)
+    .maybeSingle();
+  if (!rec || !['gravando', 'enviando'].includes(rec.status as string)) {
+    return NextResponse.json({ error: 'Gravação não está em captura.' }, { status: 409 });
+  }
+
   // Transcript da gravação (um só para a sessão ao vivo).
   const { data: existente } = await supabase
     .from('transcripts')
