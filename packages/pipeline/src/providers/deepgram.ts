@@ -17,7 +17,8 @@ type DeepgramWord = {
 /** Transcrição via Deepgram (nova-2, pt-BR, diarização). */
 export class DeepgramProvider implements TranscriptionProvider {
   readonly name = 'deepgram';
-  private readonly centsPerMinute = 43; // ~US$0,0043/min nova-2 → ajustar conforme contrato
+  // nova-2 ≈ US$0,0043/min = 0,43 centavo/min (o valor antigo, 43, estava 100× maior).
+  private readonly centsPerMinute = 0.43;
 
   constructor(private readonly apiKey: string) {}
 
@@ -50,7 +51,7 @@ export class DeepgramProvider implements TranscriptionProvider {
     };
 
     const words = json.results?.channels?.[0]?.alternatives?.[0]?.words ?? [];
-    const segments = groupWordsBySpeaker(words);
+    const segments = agruparPalavras(words);
     const durationMin = (json.metadata?.duration ?? 0) / 60;
 
     return {
@@ -62,28 +63,44 @@ export class DeepgramProvider implements TranscriptionProvider {
   }
 }
 
-/** Agrupa palavras consecutivas do mesmo falante em um trecho. */
-function groupWordsBySpeaker(words: DeepgramWord[]): TranscriptSegment[] {
+const PAUSA_MS = 1200; // silêncio que fecha um trecho
+const TRECHO_ALVO_MS = 8000; // a partir daqui, fecha na próxima pontuação final
+const TRECHO_MAX_MS = 25000; // nunca passa disso, mesmo sem pontuação
+const FIM_DE_FRASE = /[.!?…]["»)]?$/;
+
+/**
+ * Agrupa palavras em trechos curtos e citáveis: quebra quando muda o falante,
+ * quando há pausa, ou — a partir de ~8 s — na próxima pontuação final (teto de
+ * 25 s). Um monólogo de 78 s vira ~10 trechos com minuto próprio, em vez de um
+ * bloco só (o que acontecia antes e inviabilizava citações e busca).
+ */
+export function agruparPalavras(words: DeepgramWord[]): TranscriptSegment[] {
   const segments: TranscriptSegment[] = [];
-  let current: TranscriptSegment | null = null;
+  let atual: TranscriptSegment | null = null;
+  let fimAnteriorMs = 0;
 
   for (const w of words) {
     const label = `Falante ${(w.speaker ?? 0) + 1}`;
     const token = w.punctuated_word ?? w.word;
-    if (!current || current.speakerLabel !== label) {
-      if (current) segments.push(current);
-      current = {
-        speakerLabel: label,
-        track: 'desconhecido',
-        startMs: Math.round(w.start * 1000),
-        endMs: Math.round(w.end * 1000),
-        text: token,
-      };
+    const startMs = Math.round(w.start * 1000);
+    const endMs = Math.round(w.end * 1000);
+    const trocouFalante = atual !== null && atual.speakerLabel !== label;
+    const pausa = atual !== null && startMs - fimAnteriorMs > PAUSA_MS;
+    const estouraria = atual !== null && endMs - atual.startMs > TRECHO_MAX_MS;
+    if (!atual || trocouFalante || pausa || estouraria) {
+      if (atual) segments.push(atual);
+      atual = { speakerLabel: label, track: 'desconhecido', startMs, endMs, text: token };
     } else {
-      current.endMs = Math.round(w.end * 1000);
-      current.text += ` ${token}`;
+      atual.endMs = endMs;
+      atual.text += ` ${token}`;
+    }
+    fimAnteriorMs = endMs;
+    const duracao = atual.endMs - atual.startMs;
+    if (duracao >= TRECHO_ALVO_MS && FIM_DE_FRASE.test(token)) {
+      segments.push(atual);
+      atual = null;
     }
   }
-  if (current) segments.push(current);
+  if (atual) segments.push(atual);
   return segments;
 }
