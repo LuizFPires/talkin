@@ -253,7 +253,12 @@ export default function GravarPage() {
   async function conectarLive(): Promise<boolean> {
     const e = est.current;
     try {
-      const res = await fetch('/api/deepgram/token', { method: 'POST' });
+      if (!e.recordingId) return false;
+      const res = await fetch('/api/deepgram/token', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ recordingId: e.recordingId }),
+      });
       if (!res.ok) return false;
       const { key } = (await res.json()) as { key?: string };
       if (!key) return false;
