@@ -456,3 +456,303 @@ body {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* ── Versão do app (components/versao-app.tsx) ── */
+.versao-verificar,
+.versao-atualizar {
+  padding: 9px 16px;
+  border-radius: var(--radius-pill);
+  font: 600 13px var(--font-sans, inherit);
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  white-space: nowrap;
+}
+.versao-atualizar {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.versao-verificar:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.versao-verificar:focus-visible,
+.versao-atualizar:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── Configurações em estilo app (components/configuracoes-view.tsx) ── */
+.cfg {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 8px 4px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.cfg-cabecalho h1 {
+  font-size: 24px;
+  margin: 4px 0 0;
+  font-weight: 600;
+}
+.cfg-msg {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-menu);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 13px;
+}
+.cfg-lista {
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+.cfg-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  color: var(--text);
+  text-decoration: none;
+  min-height: 56px;
+}
+.cfg-item + .cfg-item {
+  border-top: 1px solid var(--border);
+}
+.cfg-item:hover,
+.cfg-item:focus-visible {
+  background: var(--bg);
+  outline: none;
+}
+.cfg-item svg {
+  color: var(--text-secondary);
+  flex: none;
+}
+.cfg-item-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.cfg-item-nome {
+  font-size: 15px;
+  font-weight: 500;
+}
+.cfg-item-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.cfg-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.cfg-coluna {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.cfg-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cfg-card-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.cfg-fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cfg-fieldset:disabled {
+  opacity: 0.65;
+}
+.cfg-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.cfg-campo > span {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+.cfg-campo input:not([type='color']):not([type='file']),
+.cfg-campo select {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: var(--radius-menu);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 16px; /* evita zoom automático no iOS */
+  font-family: inherit;
+}
+.cfg-campo input:focus-visible,
+.cfg-campo select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+.cfg-linha {
+  display: grid;
+  grid-template-columns: 1fr 84px;
+  gap: 10px;
+}
+.cfg-cor {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 14px;
+  border-radius: var(--radius-menu);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  position: relative;
+}
+.cfg-cor input[type='color'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.cfg-cor-amostra {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  flex: none;
+}
+.cfg-cor-dica {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+.cfg-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.cfg-logo-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-menu);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  object-fit: contain;
+  flex: none;
+}
+.cfg-logo-iniciais {
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+.cfg-logo .cfg-cor-dica {
+  margin-left: 0;
+  flex-basis: 100%;
+}
+.cfg-botao,
+.cfg-botao-sec,
+.cfg-previa-toggle {
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: var(--radius-pill);
+  font: 600 14px var(--font-sans, inherit);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.cfg-botao {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  width: 100%;
+}
+.cfg-botao-sec,
+.cfg-previa-toggle {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+}
+.cfg-previa-toggle {
+  min-height: 36px;
+  padding: 6px 14px;
+  font-size: 13px;
+}
+.cfg-botao-sec input[type='file'] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  cursor: pointer;
+}
+.cfg-botao:focus-visible,
+.cfg-botao-sec:focus-within,
+.cfg-previa-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.cfg-previa-corpo {
+  display: none;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+.cfg-previa-corpo.aberta {
+  display: block;
+}
+.cfg-previa-corpo iframe {
+  width: 100%;
+  height: 420px;
+  border: none;
+  display: block;
+}
+@media (min-width: 900px) {
+  .cfg-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .cfg-botao {
+    width: auto;
+    align-self: flex-start;
+  }
+  .cfg-previa-toggle {
+    display: none;
+  }
+  .cfg-previa-corpo {
+    display: block;
+  }
+  .cfg-previa-corpo iframe {
+    height: 560px;
+  }
+}
