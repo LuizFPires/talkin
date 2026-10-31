@@ -2,6 +2,7 @@ export * from './enums';
 export * from './schemas';
 export * from './format';
 export * from './extraction';
+export * from './ata-normalizar';
 export * from './providers';
 export * from './prompts';
 export * from './busca';
