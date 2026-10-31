@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { ultimoErroJob } from '@/lib/job-erro';
 import { processRecording, selectProviders } from '@talkin/pipeline';
 import { createSupabasePorts } from '@/lib/pipeline-ports';
 import { createAdminClient, hasServiceRole } from '@/lib/supabase/admin';
@@ -58,6 +59,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   } catch {
     // Não vaza detalhe interno do worker.
-    return NextResponse.json({ error: 'Falha no processamento.' }, { status: 500 });
+    const detalhe = await ultimoErroJob(createAdminClient(), recordingId);
+    return NextResponse.json({ error: 'Falha no processamento.', detalhe }, { status: 500 });
   }
 }

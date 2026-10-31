@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { regenerateSummary, selectProviders } from '@talkin/pipeline';
+import { ultimoErroJob } from '@/lib/job-erro';
 import { createSupabasePorts } from '@/lib/pipeline-ports';
 import { createAdminClient, hasServiceRole } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
@@ -49,7 +50,10 @@ export async function POST(request: Request) {
     await regenerateSummary(recordingId, createSupabasePorts(), selectProviders());
     return NextResponse.json({ ok: true });
   } catch {
-    // regenerateSummary já marca status 'erro' e registra o job; não vaza detalhe.
-    return NextResponse.json({ error: 'Falha ao gerar a ata.' }, { status: 500 });
+    // regenerateSummary já marcou 'erro' e registrou o job. Devolve o motivo curto
+    // (etapa + mensagem do provedor, sem conteúdo) para a tela mostrar e permitir
+    // "Tentar de novo".
+    const detalhe = await ultimoErroJob(admin, recordingId);
+    return NextResponse.json({ error: 'Falha ao gerar a ata.', detalhe }, { status: 500 });
   }
 }

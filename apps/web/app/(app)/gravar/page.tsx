@@ -35,6 +35,8 @@ type Estado = {
   audioCtx?: AudioContext; // medidor de nível (só para a onda da tela de espera)
   nivelTimer?: ReturnType<typeof setInterval>;
   niveis: number[]; // RMS 0–1 a cada ~400 ms, nunca sai do navegador
+  motivoLive?: string; // por que o ao vivo não conectou (código HTTP/socket), para diagnóstico
+  temLive: boolean; // houve transcrição ao vivo nesta gravação
 };
 
 const LIVE_PARAMS = new URLSearchParams({
@@ -166,6 +168,7 @@ export default function GravarPage() {
   const [pronto, setPronto] = useState(false);
   const [duracaoMs, setDuracaoMs] = useState(0);
   const [niveis, setNiveis] = useState<number[]>([]);
+  const [falhaFinal, setFalhaFinal] = useState<string | null>(null);
   const painelRef = useRef<HTMLDivElement | null>(null);
 
   const est = useRef<Estado>({
@@ -179,6 +182,7 @@ export default function GravarPage() {
     acumuladoMs: 0,
     inicioSegmento: 0,
     niveis: [],
+    temLive: false,
   });
 
   // Para tudo ao sair da tela (não deixa microfone nem socket abertos).
@@ -311,9 +315,16 @@ export default function GravarPage() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ recordingId: e.recordingId }),
       });
-      if (!res.ok) return false;
+      if (!res.ok) {
+        const b = (await res.json().catch(() => ({}))) as { status?: number };
+        e.motivoLive = `token ${res.status}${b.status ? `/deepgram ${b.status}` : ''}`;
+        return false;
+      }
       const { token } = (await res.json()) as { token?: string };
-      if (!token) return false;
+      if (!token) {
+        e.motivoLive = 'token vazio';
+        return false;
+      }
       const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${LIVE_PARAMS}`, [
         'bearer',
         token,
@@ -342,10 +353,12 @@ export default function GravarPage() {
         ws.addEventListener('open', () => clearTimeout(t), { once: true });
       });
       e.wsTentativas = 0;
+      e.motivoLive = undefined;
       setAoVivo(true);
       setAviso(null);
       return true;
-    } catch {
+    } catch (err) {
+      if (!e.motivoLive) e.motivoLive = err instanceof Error ? `socket ${err.message}` : 'socket';
       return false;
     }
   }
@@ -428,7 +441,11 @@ export default function GravarPage() {
       // Transcrição ao vivo (se o provedor estiver configurado); sem ela, segue
       // gravando e processa ao parar pelo caminho antigo.
       const live = await conectarLive();
-      if (!live) setAviso('Transcrição ao vivo indisponível — a ata será gerada ao parar.');
+      if (!live) {
+        setAviso(
+          `Transcrição ao vivo indisponível (${e.motivoLive ?? 'sem detalhe'}) — a ata será gerada ao parar.`,
+        );
+      }
 
       // Gravador 1: blocos de 20s para o arquivo/player.
       const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
@@ -553,39 +570,54 @@ export default function GravarPage() {
     await flush();
 
     const supabase = createClient();
-    const temTranscricaoAoVivo = trechos.length + e.fila.length > 0 || salvos > 0;
-    try {
-      if (momentos.length) {
-        await supabase
-          .from('recordings')
-          .update({ highlights: momentos.map((atMs) => ({ atMs })) })
-          .eq('id', e.recordingId);
-      }
-      if (temTranscricaoAoVivo) {
-        // Transcrição já está no banco: gera a ata agora (segundos), sem áudio/ffmpeg.
-        setEtapaIdx(2);
-        setEtapaFinal('Gerando a ata…');
-        await fetch('/api/ata/gerar', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ recordingId: e.recordingId }),
-        });
-      } else {
-        // Sem transcrição ao vivo: caminho antigo (processa o áudio ao parar).
-        setEtapaIdx(2);
-        setEtapaFinal('Processando o áudio…');
-        await fetch('/api/process', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ recordingId: e.recordingId }),
-        });
-      }
-    } catch {
-      // A gravação já está salva; o processamento pode ser retomado na tela dela.
+    e.temLive = trechos.length + e.fila.length > 0 || salvos > 0;
+    if (momentos.length) {
+      await supabase
+        .from('recordings')
+        .update({ highlights: momentos.map((atMs) => ({ atMs })) })
+        .eq('id', e.recordingId);
     }
-    // Fecha a trilha (100%) antes de trocar de tela.
-    setPronto(true);
-    await new Promise((r) => setTimeout(r, 700));
+    await gerarAta();
+  }
+
+  /**
+   * Gera a ata (ou processa o áudio, sem ao vivo). Só sai da Trilha quando a ata
+   * estiver pronta; em falha, mostra o motivo ali mesmo com "Tentar de novo".
+   */
+  async function gerarAta() {
+    const e = est.current;
+    if (!e.recordingId) return;
+    setFalhaFinal(null);
+    setEtapaIdx(2);
+    const rota = e.temLive ? '/api/ata/gerar' : '/api/process';
+    setEtapaFinal(e.temLive ? 'Gerando a ata…' : 'Processando o áudio…');
+    let detalhe: string | null = null;
+    try {
+      const res = await fetch(rota, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ recordingId: e.recordingId }),
+      });
+      if (res.ok) {
+        // Fecha a trilha (100%) antes de trocar de tela.
+        setPronto(true);
+        await new Promise((r) => setTimeout(r, 700));
+        router.push(`/gravacao/${e.recordingId}`);
+        router.refresh();
+        return;
+      }
+      const b = (await res.json().catch(() => ({}))) as { error?: string; detalhe?: string | null };
+      detalhe = b.detalhe ?? b.error ?? `HTTP ${res.status}`;
+    } catch (err) {
+      detalhe = err instanceof Error ? err.message : 'sem conexão';
+    }
+    // A gravação e a transcrição estão salvas; o usuário decide tentar de novo ou abrir.
+    setFalhaFinal(detalhe);
+  }
+
+  function abrirGravacao() {
+    const e = est.current;
+    if (!e.recordingId) return;
     router.push(`/gravacao/${e.recordingId}`);
     router.refresh();
   }
@@ -715,6 +747,10 @@ export default function GravarPage() {
             momentosMs={momentos}
             duracaoMs={duracaoMs}
             niveis={niveis}
+            falha={falhaFinal}
+            semLive={!est.current.temLive}
+            onTentar={() => void gerarAta()}
+            onAbrir={abrirGravacao}
           />
         )}
 
