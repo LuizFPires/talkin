@@ -4,16 +4,17 @@ import { ehUuid } from '@/lib/uuid';
 
 export const maxDuration = 15;
 
-// 1 h: a conexão é autenticada no handshake; se o socket cair, o cliente
-// reconecta buscando uma chave nova (não precisa de 4 h de validade).
-const TTL_S = 3600;
+// O token só precisa valer no handshake do WebSocket (a conexão segue aberta
+// depois); o cliente busca um novo a cada (re)conexão. Máximo aceito: 3600.
+const TTL_S = 120;
 
 /**
- * Emite uma chave TEMPORÁRIA do Deepgram para o navegador abrir o WebSocket da
- * transcrição ao vivo. Só para quem pode modificar a gravação informada e
- * enquanto ela está em captura — evita uso da conta fora de uma gravação real.
- * A chave-mestra (DEEPGRAM_API_KEY) nunca sai do servidor; a temporária tem
- * escopo mínimo (usage:write) e expira sozinha.
+ * Emite um access token TEMPORÁRIO do Deepgram (POST /v1/auth/grant) para o
+ * navegador abrir o WebSocket da transcrição ao vivo. Diferente de criar chaves
+ * (Manage API, que exige papel admin), o grant funciona com uma chave "Member"
+ * e devolve um JWT curto com escopo usage::write — a chave-mestra nunca sai do
+ * servidor. Só para quem pode modificar a gravação informada e enquanto ela
+ * está em captura.
  */
 export async function POST(request: Request) {
   const master = process.env.DEEPGRAM_API_KEY;
@@ -44,26 +45,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Gravação não está em captura.' }, { status: 409 });
   }
 
-  const headers = { Authorization: `Token ${master}`, 'content-type': 'application/json' };
-
-  const projRes = await fetch('https://api.deepgram.com/v1/projects', { headers });
-  if (!projRes.ok) return NextResponse.json({ error: 'Falha no provedor.' }, { status: 502 });
-  const { projects } = (await projRes.json()) as { projects?: { project_id: string }[] };
-  const projectId = projects?.[0]?.project_id;
-  if (!projectId) return NextResponse.json({ error: 'Falha no provedor.' }, { status: 502 });
-
-  const keyRes = await fetch(`https://api.deepgram.com/v1/projects/${projectId}/keys`, {
+  const res = await fetch('https://api.deepgram.com/v1/auth/grant', {
     method: 'POST',
-    headers,
-    body: JSON.stringify({
-      comment: `talkin-live ${recordingId.slice(0, 8)}`,
-      scopes: ['usage:write'],
-      time_to_live_in_seconds: TTL_S,
-    }),
+    headers: { Authorization: `Token ${master}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ ttl_seconds: TTL_S }),
   });
-  if (!keyRes.ok) return NextResponse.json({ error: 'Falha no provedor.' }, { status: 502 });
-  const { key } = (await keyRes.json()) as { key?: string };
-  if (!key) return NextResponse.json({ error: 'Falha no provedor.' }, { status: 502 });
+  if (!res.ok) {
+    return NextResponse.json({ error: 'Falha no provedor.', status: res.status }, { status: 502 });
+  }
+  const { access_token: token, expires_in: expiresIn } = (await res.json()) as {
+    access_token?: string;
+    expires_in?: number;
+  };
+  if (!token) return NextResponse.json({ error: 'Falha no provedor.' }, { status: 502 });
 
-  return NextResponse.json({ key, expiresIn: TTL_S });
+  return NextResponse.json({ token, expiresIn: expiresIn ?? TTL_S });
 }

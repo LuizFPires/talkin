@@ -260,9 +260,12 @@ export default function GravarPage() {
         body: JSON.stringify({ recordingId: e.recordingId }),
       });
       if (!res.ok) return false;
-      const { key } = (await res.json()) as { key?: string };
-      if (!key) return false;
-      const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${LIVE_PARAMS}`, ['token', key]);
+      const { token } = (await res.json()) as { token?: string };
+      if (!token) return false;
+      const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${LIVE_PARAMS}`, [
+        'bearer',
+        token,
+      ]);
       e.ws = ws;
       ws.onmessage = tratarMensagem;
       ws.onerror = () => {
