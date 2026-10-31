@@ -287,3 +287,99 @@ body {
     transition: none;
   }
 }
+
+/* ── Menu "⋯" da gravação e confirmação (components/menu-gravacao.tsx) ── */
+.menu-gravacao-botao {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex: none;
+}
+.menu-gravacao-botao:hover,
+.menu-gravacao-botao[aria-expanded='true'] {
+  color: var(--text);
+  background: var(--card);
+}
+.menu-gravacao {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 200px;
+  padding: 6px;
+  border-radius: var(--radius-card, 16px);
+  border: 1px solid var(--border);
+  background: var(--card);
+  z-index: 20;
+}
+.menu-gravacao-item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: 500 14px var(--font-sans, inherit);
+  padding: 10px 12px;
+  border-radius: var(--radius-menu);
+  cursor: pointer;
+}
+.menu-gravacao-item:hover,
+.menu-gravacao-item:focus-visible {
+  background: var(--bg);
+  outline: none;
+}
+.menu-gravacao-item.perigo {
+  color: var(--danger);
+}
+.confirmacao-fundo {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(3, 7, 7, 0.72);
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-left, 0px));
+}
+.confirmacao {
+  width: min(440px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px;
+  border-radius: var(--radius-panel, 24px);
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+.confirmacao-cancelar,
+.confirmacao-excluir {
+  padding: 10px 18px;
+  border-radius: var(--radius-pill);
+  font: 600 14px var(--font-sans, inherit);
+  cursor: pointer;
+}
+.confirmacao-cancelar {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+}
+.confirmacao-excluir {
+  border: 1px solid var(--danger);
+  background: var(--danger);
+  color: #1a0505;
+}
+.confirmacao-cancelar:disabled,
+.confirmacao-excluir:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.confirmacao-cancelar:focus-visible,
+.confirmacao-excluir:focus-visible,
+.menu-gravacao-botao:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
