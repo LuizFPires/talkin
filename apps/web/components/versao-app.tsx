@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import { Card, Pilula, Rotulo } from '@talkin/ui';
-
-const VERSAO_LOCAL = process.env.NEXT_PUBLIC_VERSAO ?? 'dev';
+import { VERSAO_LOCAL, versaoNoServidor } from '@/lib/versao';
 
 type Estado =
   | { tipo: 'parado' }
@@ -29,10 +28,7 @@ export function VersaoApp() {
         const reg = await navigator.serviceWorker.getRegistration();
         await reg?.update().catch(() => {});
       }
-      const res = await fetch(`/sw.js?v=${Date.now()}`, { cache: 'no-store' });
-      const texto = await res.text();
-      const m = /versão\s+(\S+)/.exec(texto);
-      const remota = m?.[1];
+      const remota = await versaoNoServidor();
       if (!remota) throw new Error('sem versão');
       setEstado(remota === VERSAO_LOCAL ? { tipo: 'atual' } : { tipo: 'nova', versao: remota });
     } catch {

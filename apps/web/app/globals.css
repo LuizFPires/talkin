@@ -1453,3 +1453,32 @@ body {
     bottom: calc(176px + env(safe-area-inset-bottom));
   }
 }
+
+/* ── Versão do app no topo (components/versao-pill.tsx) ── */
+.versao-pill {
+  font: 500 10.5px var(--font-mono);
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-tap-highlight-color: transparent;
+}
+.versao-pill:hover,
+.versao-pill.ativa {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.versao-pill:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.app-sidebar .versao-pill {
+  justify-self: start;
+}
