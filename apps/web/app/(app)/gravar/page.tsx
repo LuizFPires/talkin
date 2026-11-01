@@ -212,6 +212,18 @@ export default function GravarPage() {
     };
   }, []);
 
+  // Enquanto há gravação em andamento (contagem, gravando, finalizando), o aviso
+  // de versão nova fica escondido: recarregar perderia o bloco em andamento.
+  useEffect(() => {
+    const ativa = fase !== 'idle';
+    document.documentElement.dataset.gravando = ativa ? '1' : '';
+    window.dispatchEvent(new CustomEvent('talkin:gravacao', { detail: ativa }));
+    return () => {
+      document.documentElement.dataset.gravando = '';
+      window.dispatchEvent(new CustomEvent('talkin:gravacao', { detail: false }));
+    };
+  }, [fase]);
+
   // Rola o painel da transcrição para o fim a cada trecho novo.
   useEffect(() => {
     const el = painelRef.current;

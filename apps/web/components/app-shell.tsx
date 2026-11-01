@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Sidebar, Rotulo, Pilula } from '@talkin/ui';
+import { VersaoPill } from './versao-pill';
 
 const ITENS = [
   { key: '/gravar', label: 'Gravar reunião' },
@@ -180,8 +181,9 @@ export function AppShell({ email, children }: { email: string; children: React.R
           activeKey={activeKey}
           onSelect={(key) => router.push(key)}
           header={
-            <div style={{ padding: '4px 8px 16px' }}>
+            <div style={{ padding: '4px 8px 16px', display: 'grid', gap: 6 }}>
               <Rotulo>Talkin</Rotulo>
+              <VersaoPill />
             </div>
           }
           footer={
@@ -203,7 +205,10 @@ export function AppShell({ email, children }: { email: string; children: React.R
 
       {/* Mobile: topo fixo compacto */}
       <header className="app-topbar">
-        <Rotulo>Talkin</Rotulo>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <Rotulo>Talkin</Rotulo>
+          <VersaoPill />
+        </div>
         <button
           type="button"
           onClick={sair}
