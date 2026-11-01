@@ -53,11 +53,11 @@ export function buildAtaHtml(doc: AtaDoc): string {
     { label: 'Duração', valor: duracao },
     { label: 'Participantes', valor: String(recording.participants?.length ?? '—') },
     { label: 'Decisões', valor: String(ex.decisoes.length) },
-    { label: 'Pendências', valor: String(ex.pendencias.length), destaque: true },
+    { label: 'Pendências', valor: String(ex.pendencias.length) },
   ]
     .map(
       (c) =>
-        `<div class="card ${c.destaque ? 'card-destaque' : ''}">
+        `<div class="card">
           ${rotulo(c.label)}
           <div class="num">${esc(c.valor)}</div>
         </div>`,
@@ -131,8 +131,6 @@ export function buildAtaHtml(doc: AtaDoc): string {
   .meta { color: #98a7a7; font-size: 12px; }
   .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 18px 0; }
   .card { border: 1px solid #e3e6e6; border-radius: 16px; padding: 12px; }
-  .card-destaque { background: #071416; color: #f5f7f7; }
-  .card-destaque .num { color: var(--accent); }
   .num { font-size: 26px; font-weight: 600; margin-top: 6px; }
   .rotulo { text-transform: uppercase; font-size: 11px; font-weight: 500; letter-spacing: .18em; color: #798e91; }
   .bloco { margin: 14px 0; break-inside: avoid; } /* nunca título órfão */
