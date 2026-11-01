@@ -152,9 +152,10 @@ export function GestaoGravacao({ recordingId }: { recordingId: string }) {
                   gap: 8,
                   alignItems: 'center',
                   justifyContent: 'space-between',
+                  flexWrap: 'wrap',
                 }}
               >
-                <span style={{ fontSize: 13 }}>{p.text}</span>
+                <span style={{ fontSize: 13, flex: 1, minWidth: 160 }}>{p.text}</span>
                 <select
                   value={p.assignee_person_id ?? ''}
                   onChange={(e) => void atribuir(p, e.target.value)}
