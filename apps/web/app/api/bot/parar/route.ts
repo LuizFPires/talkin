@@ -29,9 +29,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Sem permissão ou bot inexistente.' }, { status: 403 });
   }
 
-  if (parado.provider_bot_id) {
+  const provider = selectBotProvider();
+  if (parado.provider_bot_id && provider) {
     try {
-      await selectBotProvider().stopBot(parado.provider_bot_id as string);
+      await provider.stopBot(parado.provider_bot_id as string);
     } catch {
       // provedor falhou, mas o bot já consta como encerrado
     }

@@ -1487,3 +1487,70 @@ body {
 .app-sidebar .versao-pill {
   justify-self: start;
 }
+
+/* ── Bot de reunião (app/(app)/bot/page.tsx) ── */
+.bot-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.bot-status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.bot-status.gravando {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.bot-status.gravando i {
+  animation: bot-pulse 1.4s ease-in-out infinite;
+}
+@keyframes bot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bot-status.gravando i {
+    animation: none;
+  }
+}
+.bot-status.entrando,
+.bot-status.agendado {
+  color: var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 40%, transparent);
+}
+.bot-status.erro {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+}
+.bot-abrir,
+.bot-desligar {
+  border-radius: var(--radius-pill);
+  font: 600 12px var(--font-ui);
+  padding: 7px 12px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.bot-abrir {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid var(--accent);
+}
+.bot-desligar {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--danger);
+}

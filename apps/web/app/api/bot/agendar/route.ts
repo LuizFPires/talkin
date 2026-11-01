@@ -2,13 +2,20 @@ import { NextResponse } from 'next/server';
 import { estimarCustoBotCents, plataformaPorUrl } from '@talkin/core';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient, hasServiceRole } from '@/lib/supabase/admin';
-import { BOT_CENTS_PER_HOUR, selectBotProvider } from '@/lib/bot';
+import { BOT_CENTS_PER_HOUR, BOT_NOME, selectBotProvider } from '@/lib/bot';
 
 export const maxDuration = 30;
 
 /** Agenda o bot para entrar numa reunião (SPEC 22). POST { meetingUrl }. */
 export async function POST(request: Request) {
   if (!hasServiceRole()) return NextResponse.json({ error: 'Indisponível.' }, { status: 503 });
+  const provider = selectBotProvider();
+  if (!provider) {
+    return NextResponse.json(
+      { error: 'Bot não configurado: falta a chave do Recall.ai (RECALL_API_KEY) na Vercel.' },
+      { status: 503 },
+    );
+  }
 
   const { meetingUrl } = (await request.json().catch(() => ({}))) as { meetingUrl?: string };
   const plataforma = meetingUrl ? plataformaPorUrl(meetingUrl) : null;
@@ -62,15 +69,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Não foi possível agendar.' }, { status: 400 });
 
   try {
-    const r = await selectBotProvider().scheduleBot({ meetingUrl, platform: plataforma });
+    const r = await provider.scheduleBot({
+      meetingUrl,
+      platform: plataforma,
+      displayName: BOT_NOME,
+      referencia: bot.id,
+    });
     await admin
       .from('meeting_bots')
       .update({ provider_bot_id: r.providerBotId, status: r.status })
       .eq('id', bot.id);
     return NextResponse.json({ ok: true, botId: bot.id, custoHoraCents });
-  } catch {
+  } catch (err) {
     // Bot não rodou: não deixa custo residual inflando os relatórios.
     await admin.from('meeting_bots').update({ status: 'erro', cost_cents: 0 }).eq('id', bot.id);
-    return NextResponse.json({ error: 'Falha ao acionar o bot.' }, { status: 502 });
+    const detalhe = err instanceof Error ? err.message : '';
+    return NextResponse.json(
+      { error: `Falha ao acionar o bot${detalhe ? ` (${detalhe})` : ''}.` },
+      { status: 502 },
+    );
   }
 }
